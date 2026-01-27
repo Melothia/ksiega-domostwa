@@ -16,7 +16,7 @@ import ReceiptsView from "../components/ReceiptsView";
 
 import { getNextAvailableText } from "../lib/dateUtils";
 
-/* ===== KONFIGURACJA GRACZY (STATYCZNA) ===== */
+/* ===== KONFIGURACJA GRACZY ===== */
 const PLAYERS = [
   {
     id: "b45ef046-f815-4eda-8015-d9212d9ac2ee",
@@ -45,12 +45,11 @@ const PLAYERS = [
 ];
 
 export default function Home() {
-  /* ===== STANY GŁÓWNE ===== */
+  /* ===== STANY ===== */
   const [player, setPlayer] = useState(null);
   const [tab, setTab] = useState("main");
   const [loading, setLoading] = useState(false);
 
-  /* ===== DANE ===== */
   const [progress, setProgress] = useState(null);
   const [ranking, setRanking] = useState([]);
   const [lastWinner, setLastWinner] = useState("—");
@@ -59,25 +58,15 @@ export default function Home() {
   const [upcoming, setUpcoming] = useState([]);
   const [slots, setSlots] = useState({});
 
-  /* ===== LOGIN ===== */
-  if (!player) {
-    return (
-      <LoginScreen
-        players={PLAYERS}
-        onSelect={p => setPlayer(p)}
-      />
-    );
-  }
-
-  /* ===== ŁADOWANIE DANYCH ===== */
+  /* ===== ŁADOWANIE DANYCH (HOOK ZAWSZE WYWOŁANY!) ===== */
   useEffect(() => {
+    if (!player) return;
+
     const loadAll = async () => {
       setLoading(true);
 
-      /* reset miesiąca jeśli trzeba */
       await supabase.rpc("reset_month_if_needed");
 
-      /* progress gracza */
       const { data: mp } = await supabase
         .from("monthly_progress")
         .select("*")
@@ -86,7 +75,6 @@ export default function Home() {
 
       setProgress(mp ?? null);
 
-      /* ranking miesiąca */
       const { data: rank } = await supabase
         .from("monthly_progress")
         .select("players(nick), level, xp")
@@ -100,18 +88,10 @@ export default function Home() {
         }))
       );
 
-      /* gracz miesiąca poprzedniego */
-      const { data: winner } = await supabase.rpc(
-        "last_month_winner"
-      );
+      const { data: winner } = await supabase.rpc("last_month_winner");
       setLastWinner(winner ?? "—");
 
-      /* questy */
-      const { data: q } = await supabase
-        .from("quests")
-        .select("*");
-
-      /* sloty */
+      const { data: q } = await supabase.from("quests").select("*");
       const { data: s } = await supabase
         .from("quest_slots")
         .select("quest_id, players(nick)");
@@ -121,18 +101,14 @@ export default function Home() {
         if (!slotMap[row.quest_id]) slotMap[row.quest_id] = [];
         slotMap[row.quest_id].push(row.players.nick);
       });
+
       setSlots(slotMap);
 
-      /* rozdziel questy */
       const active = [];
       const future = [];
 
       (q ?? []).forEach(quest => {
-        if (quest.is_active) {
-          active.push(quest);
-        } else {
-          future.push(quest);
-        }
+        quest.is_active ? active.push(quest) : future.push(quest);
       });
 
       setQuests(active);
@@ -144,6 +120,16 @@ export default function Home() {
     loadAll();
   }, [player]);
 
+  /* ===== LOGIN ===== */
+  if (!player) {
+    return (
+      <LoginScreen
+        players={PLAYERS}
+        onSelect={setPlayer}
+      />
+    );
+  }
+
   /* ===== AKCJE QUESTÓW ===== */
   const completeSolo = async quest => {
     setLoading(true);
@@ -152,7 +138,7 @@ export default function Home() {
       p_quest_id: quest.id,
     });
     setLoading(false);
-    setPlayer({ ...player }); // trigger reload
+    setPlayer({ ...player });
   };
 
   const completeGroup = async (quest, secondPlayerId) => {
@@ -170,14 +156,11 @@ export default function Home() {
   return (
     <Layout>
       <PlayerPanel player={player} progress={progress} />
-
       <RankingBar ranking={ranking} lastWinner={lastWinner} />
-
       <Tabs active={tab} onChange={setTab} />
 
       {loading && <p>⏳ Ładowanie…</p>}
 
-      {/* ===== GŁÓWNA ===== */}
       {tab === "main" && (
         <>
           <QuestList
@@ -204,15 +187,12 @@ export default function Home() {
         </>
       )}
 
-      {/* ===== OSIĄGNIĘCIA ===== */}
       {tab === "achievements" && (
         <AchievementsView playerId={player.id} />
       )}
 
-      {/* ===== KRONIKA ===== */}
       {tab === "chronicle" && <ChronicleView />}
 
-      {/* ===== PARAGONY ===== */}
       {tab === "receipts" && (
         <ReceiptsView playerId={player.id} />
       )}
