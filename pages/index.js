@@ -158,9 +158,38 @@ export default function Home() {
      LOADING GUARD
   ========================= */
 
-  if (!supabase) {
-    return <div style={{ color: "#fff", padding: 20 }}>Ładowanie…</div>;
-  }
+  if (!supabase || players.length === 0) {
+  return (
+    <div style={{ color: "#fff", padding: 20 }}>
+      ⏳ Ładowanie danych...
+    </div>
+  );
+}
+
+if (!currentPlayer) {
+  return (
+    <div style={{ color: "#fff", padding: 20 }}>
+      <h1>📖 Księga Domostwa</h1>
+
+      {players.map(p => (
+        <div
+          key={p.id}
+          style={{
+            margin: "12px 0",
+            padding: "12px",
+            background: "#2a1f3d",
+            borderRadius: 12,
+            cursor: "pointer"
+          }}
+          onClick={() => selectPlayer(p)}
+        >
+          {p.nick}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 
   /* =========================
      LOGIN
