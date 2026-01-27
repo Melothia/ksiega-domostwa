@@ -6,54 +6,68 @@ const supabase = createClient(
   "sb_publishable_dm5fyZedKgGD3OccGT2yDg_38bv-Efd"
 );
 
+const dicebear = (seed) =>
+  `https://api.dicebear.com/7.x/adventurer/svg?seed=${seed}`;
+
+function timeAgo(date) {
+  const d = new Date(date);
+  const diff = Math.floor((Date.now() - d) / (1000 * 60 * 60 * 24));
+  if (diff === 0) return "dzisiaj";
+  if (diff === 1) return "wczoraj";
+  return `${diff} dni temu`;
+}
+
 export default function Home() {
   const [players, setPlayers] = useState([]);
-  const [currentPlayer, setCurrentPlayer] = useState(null);
-  const [quests, setQuests] = useState([]);
+  const [player, setPlayer] = useState(null);
   const [progress, setProgress] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [quests, setQuests] = useState([]);
+  const [recent, setRecent] = useState([]);
+  const [partner, setPartner] = useState(null);
 
-  // === INIT ===
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+
+  /* PLAYERS */
   useEffect(() => {
-    loadPlayers();
+    supabase
+      .from("players")
+      .select("id, nick, avatar_url")
+      .then(({ data }) => setPlayers(data || []));
   }, []);
 
-  async function loadPlayers() {
-    const { data } = await supabase.from("players").select("*");
-    setPlayers(data || []);
-  }
+  /* LOAD PLAYER DATA */
+  async function loadPlayer(p) {
+    setPlayer(p);
+    setPartner(null);
 
-  async function loadData(player) {
-    setLoading(true);
-    setCurrentPlayer(player);
-
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
-
-    const { data: progressData } = await supabase
+    const { data: mp } = await supabase
       .from("monthly_progress")
       .select("*")
-      .eq("player_id", player.id)
+      .eq("player_id", p.id)
       .eq("year", year)
       .eq("month", month)
       .single();
 
-    setProgress(progressData);
+    setProgress(mp);
 
-    const { data: questsData } = await supabase
-      .from("quests")
-      .select("*")
-      .order("base_xp", { ascending: false });
+    const { data: qs } = await supabase.from("quests").select("*");
+    setQuests(qs || []);
 
-    setQuests(questsData || []);
-    setLoading(false);
+    const { data: rc } = await supabase
+      .from("quest_completions")
+      .select("completed_at, quests(name), players(nick, avatar_url)")
+      .order("completed_at", { ascending: false })
+      .limit(5);
+
+    setRecent(rc || []);
   }
 
-  async function completeQuest(questId, playerIds) {
-    for (const pid of playerIds) {
+  async function executeQuest(questId, ids) {
+    for (const id of ids) {
       const { error } = await supabase.rpc("complete_quest", {
-        p_player_id: pid,
+        p_player_id: id,
         p_quest_id: questId,
       });
       if (error) {
@@ -61,135 +75,140 @@ export default function Home() {
         return;
       }
     }
-    await loadData(currentPlayer);
+    await loadPlayer(player);
   }
 
-  // === UI ===
+  /* UI */
+  if (!player) {
+    return (
+      <main style={styles.app}>
+        <h1>📖 Księga Domostwa</h1>
+        {players.map((p) => (
+          <button key={p.id} style={styles.playerBtn} onClick={() => loadPlayer(p)}>
+            <img
+              src={p.avatar_url || dicebear(p.nick)}
+              style={styles.avatar}
+            />
+            {p.nick}
+          </button>
+        ))}
+      </main>
+    );
+  }
+
   return (
-    <div style={styles.app}>
-      <h1 style={styles.title}>📜 Księga Domostwa</h1>
-
-      {!currentPlayer && (
-        <div style={styles.playerList}>
-          {players.map((p) => (
-            <button
-              key={p.id}
-              style={styles.playerButton}
-              onClick={() => loadData(p)}
-            >
-              {p.nick}
-            </button>
-          ))}
+    <main style={styles.app}>
+      <section style={styles.card}>
+        <img
+          src={player.avatar_url || dicebear(player.nick)}
+          style={styles.avatarLarge}
+        />
+        <div>
+          <strong>{player.nick}</strong><br />
+          Poziom {progress?.level} · XP {progress?.xp}/{progress?.level * 100}
         </div>
-      )}
+      </section>
 
-      {currentPlayer && (
-        <>
-          <div style={styles.card}>
-            <h2>{currentPlayer.nick}</h2>
-            {progress && (
-              <p>
-                Poziom {progress.level} · XP {progress.xp}/{progress.level * 100}
-              </p>
-            )}
+      <section style={{ ...styles.card, background: "#1b1814" }}>
+        <strong>📜 Kronika Gildii</strong>
+        {recent.map((r, i) => (
+          <div
+            key={i}
+            style={{ opacity: 1 - i * 0.15, marginTop: 6 }}
+          >
+            <img
+              src={r.players.avatar_url || dicebear(r.players.nick)}
+              style={styles.avatarSmall}
+            />{" "}
+            <strong>{r.players.nick}</strong> – {r.quests.name}
+            <div style={{ fontSize: 12, color: "#aaa" }}>
+              {timeAgo(r.completed_at)}
+            </div>
+          </div>
+        ))}
+      </section>
+
+      {quests.map((q) => (
+        <section key={q.id} style={styles.card}>
+          <strong>{q.name}</strong>
+          <div style={{ fontSize: 14, color: "#bbb" }}>
+            ⏱ {q.time_minutes} min · ⭐ {q.base_xp} XP
           </div>
 
-          {loading && <p>Ładowanie…</p>}
+          {q.max_slots === 1 && (
+            <button style={styles.btn} onClick={() => executeQuest(q.id, [player.id])}>
+              Wykonaj
+            </button>
+          )}
 
-          <div>
-            {quests.map((q) => (
-              <div key={q.id} style={styles.quest}>
-                <strong>{q.name}</strong>
-                <div>
-                  ⏱ {q.time_minutes} min · ⭐ {q.base_xp} XP
-                </div>
+          {q.max_slots > 1 && (
+            <>
+              <button style={styles.btn} onClick={() => executeQuest(q.id, [player.id])}>
+                Wykonaj samodzielnie
+              </button>
 
-                {q.max_slots === 1 && (
-                  <button
-                    style={styles.action}
-                    onClick={() => completeQuest(q.id, [currentPlayer.id])}
-                  >
-                    Wykonaj
-                  </button>
-                )}
+              <select
+                value={partner || ""}
+                onChange={(e) => setPartner(e.target.value)}
+              >
+                <option value="">Wybierz gracza…</option>
+                {players
+                  .filter((p) => p.id !== player.id)
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nick}
+                    </option>
+                  ))}
+              </select>
 
-                {q.max_slots > 1 && (
-                  <>
-                    <button
-                      style={styles.action}
-                      onClick={() => completeQuest(q.id, [currentPlayer.id])}
-                    >
-                      Wykonaj samodzielnie
-                    </button>
-
-                    <select
-                      onChange={(e) =>
-                        completeQuest(q.id, [
-                          currentPlayer.id,
-                          e.target.value,
-                        ])
-                      }
-                    >
-                      <option>Wykonaj z graczem…</option>
-                      {players
-                        .filter((p) => p.id !== currentPlayer.id)
-                        .map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.nick}
-                          </option>
-                        ))}
-                    </select>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+              {partner && (
+                <button
+                  style={styles.btn}
+                  onClick={() => executeQuest(q.id, [player.id, partner])}
+                >
+                  Wykonaj razem
+                </button>
+              )}
+            </>
+          )}
+        </section>
+      ))}
+    </main>
   );
 }
 
 const styles = {
   app: {
     minHeight: "100vh",
-    background: "#1c1a17",
-    color: "#f5f5f5",
-    padding: 24,
+    background: "#1e1b16",
+    color: "#f4f1ea",
+    padding: 20,
     fontFamily: "serif",
   },
-  title: { textAlign: "center" },
-  playerList: {
-    display: "flex",
-    gap: 12,
-    justifyContent: "center",
-    marginTop: 40,
-  },
-  playerButton: {
-    padding: "12px 20px",
-    background: "#6b4f1d",
-    border: "none",
-    color: "white",
-    cursor: "pointer",
-  },
   card: {
-    background: "#2a241b",
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 24,
-  },
-  quest: {
-    background: "#2f2a20",
+    background: "#2a251d",
     padding: 12,
     borderRadius: 8,
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  action: {
+  playerBtn: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    padding: 10,
+    background: "#6b4f1d",
+    color: "#fff",
+    border: "none",
+    marginBottom: 8,
+  },
+  avatar: { width: 36, height: 36, borderRadius: "50%" },
+  avatarLarge: { width: 64, height: 64, borderRadius: "50%" },
+  avatarSmall: { width: 20, height: 20, borderRadius: "50%" },
+  btn: {
     marginTop: 8,
     padding: "6px 12px",
     background: "#8a6a2f",
     border: "none",
-    cursor: "pointer",
     color: "white",
   },
 };
