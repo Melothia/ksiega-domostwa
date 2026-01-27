@@ -23,6 +23,8 @@ export default function Home() {
   const [player, setPlayer] = useState(null);
   const [progress, setProgress] = useState(null);
   const [ranking, setRanking] = useState([]);
+  const [activeQuests, setActiveQuests] = useState([]);
+  const [upcomingQuests, setUpcomingQuests] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const now = new Date();
@@ -63,6 +65,27 @@ export default function Home() {
       .order("xp", { ascending: false });
 
     setRanking(rank || []);
+
+    const { data: quests } = await supabase
+      .from("quests")
+      .select("*");
+
+    const nowTs = new Date();
+
+    const active = [];
+    const upcoming = [];
+
+    (quests || []).forEach((q) => {
+      if (q.next_available_at && new Date(q.next_available_at) > nowTs) {
+        upcoming.push(q);
+      } else {
+        active.push(q);
+      }
+    });
+
+    setActiveQuests(active);
+    setUpcomingQuests(upcoming);
+
     setLoading(false);
   }
 
@@ -127,11 +150,41 @@ export default function Home() {
         ))}
       </section>
 
-      <section style={styles.cardMuted}>
-        <em>
-          Dalej: questy, questy nadchodzące i kronika.
-        </em>
+      {/* QUESTY AKTYWNE */}
+      <section style={styles.card}>
+        <h3>📜 Questy Do Wykonania</h3>
+        {activeQuests.map((q) => (
+          <div key={q.id} style={styles.questLine}>
+            <strong>{q.name}</strong>
+            <span style={{ fontSize: 13, opacity: 0.8 }}>
+              ⏱ {q.time_minutes} min · ⭐ {q.base_xp} XP
+            </span>
+          </div>
+        ))}
       </section>
+
+      {/* QUESTY NADCHODZĄCE */}
+      {upcomingQuests.length > 0 && (
+        <section style={styles.cardUpcoming}>
+          <h3>⏳ Questy Nadchodzące</h3>
+          {upcomingQuests.map((q) => {
+            const days =
+              Math.ceil(
+                (new Date(q.next_available_at) - now) /
+                  (1000 * 60 * 60 * 24)
+              ) || 1;
+
+            return (
+              <div key={q.id} style={styles.upcomingLine}>
+                <strong>{q.name}</strong>
+                <span style={styles.upcomingText}>
+                  Dostępne za {days} {days === 1 ? "dzień" : "dni"}
+                </span>
+              </div>
+            );
+          })}
+        </section>
+      )}
     </main>
   );
 }
@@ -148,17 +201,29 @@ const styles = {
     background: "#241c33",
     padding: 14,
     borderRadius: 14,
-    marginBottom: 12,
-    boxShadow: "0 4px 10px rgba(0,0,0,0.4)",
-    display: "flex",
-    gap: 14,
-    alignItems: "center",
+    marginBottom: 16,
   },
-  cardMuted: {
+  cardUpcoming: {
     background: "#1f192d",
     padding: 14,
     borderRadius: 14,
-    opacity: 0.7,
+    marginBottom: 16,
+    opacity: 0.6,
+  },
+  questLine: {
+    display: "flex",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  upcomingLine: {
+    display: "flex",
+    justifyContent: "space-between",
+    marginBottom: 6,
+    fontStyle: "italic",
+  },
+  upcomingText: {
+    fontSize: 13,
+    opacity: 0.8,
   },
   rankBar: {
     display: "flex",
