@@ -10,29 +10,37 @@ export default function Home() {
   const [player, setPlayer] = useState(null);
   const [quests, setQuests] = useState([]);
   const [progress, setProgress] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const monthKey = new Date().toISOString().slice(0, 7); // YYYY-MM
 
-  // ====== LOAD PLAYER FROM LOCAL STORAGE ======
+  // ===== LOAD PLAYER =====
   useEffect(() => {
     const saved = localStorage.getItem("player");
     if (saved) setPlayer(saved);
   }, []);
 
-  // ====== LOAD PROGRESS ======
+  // ===== LOAD OR CREATE PROGRESS =====
   useEffect(() => {
     if (!player) return;
 
     const loadProgress = async () => {
-      let { data } = await supabase
+      setLoading(true);
+
+      const { data, error } = await supabase
         .from("monthly_progress")
         .select("*")
         .eq("player_id", player)
-        .eq("month", monthKey)
-        .single();
+        .eq("month", monthKey);
 
-      if (!data) {
-        const { data: created } = await supabase
+      if (error) {
+        console.error(error);
+        setLoading(false);
+        return;
+      }
+
+      if (data.length === 0) {
+        const { data: created, error: insertError } = await supabase
           .from("monthly_progress")
           .insert({
             player_id: player,
@@ -43,16 +51,22 @@ export default function Home() {
           .select()
           .single();
 
-        setProgress(created);
+        if (insertError) {
+          console.error(insertError);
+        } else {
+          setProgress(created);
+        }
       } else {
-        setProgress(data);
+        setProgress(data[0]);
       }
+
+      setLoading(false);
     };
 
     loadProgress();
   }, [player]);
 
-  // ====== LOAD QUESTS (ONLY FROM SUPABASE) ======
+  // ===== LOAD QUESTS =====
   useEffect(() => {
     const loadQuests = async () => {
       const { data } = await supabase
@@ -66,7 +80,7 @@ export default function Home() {
     loadQuests();
   }, []);
 
-  // ====== COMPLETE QUEST ======
+  // ===== COMPLETE QUEST =====
   const completeQuest = async (quest) => {
     if (!player || !progress) return;
 
@@ -75,25 +89,19 @@ export default function Home() {
       p_quest_id: quest.id,
     });
 
-    // reload progress + quests
-    const { data: updated } = await supabase
+    // reload progress
+    const { data } = await supabase
       .from("monthly_progress")
       .select("*")
       .eq("player_id", player)
-      .eq("month", monthKey)
-      .single();
+      .eq("month", monthKey);
 
-    setProgress(updated);
-
-    const { data: refreshedQuests } = await supabase
-      .from("quests")
-      .select("*")
-      .order("frequency_days");
-
-    setQuests(refreshedQuests || []);
+    if (data && data.length > 0) {
+      setProgress(data[0]);
+    }
   };
 
-  // ====== UI ======
+  // ===== UI =====
   if (!player) {
     return (
       <main style={{ padding: 20 }}>
@@ -114,7 +122,9 @@ export default function Home() {
     );
   }
 
-  if (!progress) return <p>Ładowanie…</p>;
+  if (loading || !progress) {
+    return <p style={{ padding: 20 }}>Ładowanie…</p>;
+  }
 
   return (
     <main style={{ padding: 20 }}>
@@ -129,9 +139,14 @@ export default function Home() {
       {quests.length === 0 && <p>Brak questów w bazie.</p>}
 
       {quests.map((q) => (
-        <div key={q.id} style={{ border: "1px solid #444", padding: 10, marginBottom: 10 }}>
+        <div
+          key={q.id}
+          style={{ border: "1px solid #444", padding: 10, marginBottom: 10 }}
+        >
           <strong>{q.name}</strong>
-          <div>{q.time_minutes} min • {q.base_xp} XP</div>
+          <div>
+            {q.time_minutes} min • {q.base_xp} XP
+          </div>
           <button onClick={() => completeQuest(q)}>Wykonane</button>
         </div>
       ))}
