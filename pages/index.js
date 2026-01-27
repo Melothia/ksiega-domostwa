@@ -2,341 +2,311 @@ import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
-  "https://zhywdorfllurbkwzesii.supabase.co",
-  "sb_publishable_dm5fyZedKgGD3OccGT2yDg_38bv-Efd"
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-const rewards = {
-  Reu: "🎬 Wyjście do Kina",
-  Melothy: "🎲 Wieczór Planszówkowy",
-  Pshemcky: "🏃 Wspólna Aktywność Sportowa",
-  Benditt: "🍜 Wyjście na Ramen",
-};
+/* ===========================
+   POMOCNICZE
+=========================== */
 
-const medals = ["🥇", "🥈", "🥉", "🎖️"];
+const XP_PER_LEVEL = 100;
+
+function xpToNext(level) {
+  return level * XP_PER_LEVEL;
+}
+
+function safe(val, fallback = "") {
+  return val === null || val === undefined ? fallback : val;
+}
+
+/* ===========================
+   STRONA
+=========================== */
 
 export default function Home() {
   const [players, setPlayers] = useState([]);
-  const [player, setPlayer] = useState(null);
+  const [currentPlayer, setCurrentPlayer] = useState(null);
   const [progress, setProgress] = useState(null);
-  const [ranking, setRanking] = useState([]);
   const [quests, setQuests] = useState([]);
+  const [upcoming, setUpcoming] = useState([]);
   const [chronicle, setChronicle] = useState([]);
+  const [achievements, setAchievements] = useState([]);
   const [receipts, setReceipts] = useState([]);
   const [tab, setTab] = useState("main");
   const [loading, setLoading] = useState(false);
 
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
+  /* ===========================
+     LOAD PODSTAW
+  =========================== */
 
   useEffect(() => {
-    supabase.from("players").select("*").then(({ data }) => {
-      setPlayers(data || []);
-    });
-
-    const saved = localStorage.getItem("player_id");
-    if (saved) {
-      supabase
-        .from("players")
-        .select("*")
-        .eq("id", saved)
-        .single()
-        .then(({ data }) => data && loadPlayer(data));
-    }
+    loadPlayers();
   }, []);
 
-  async function loadPlayer(p) {
+  async function loadPlayers() {
+    const { data } = await supabase.from("players").select("*").order("nick");
+    setPlayers(data || []);
+  }
+
+  async function selectPlayer(player) {
+    setCurrentPlayer(player);
     setLoading(true);
-    setPlayer(p);
-    localStorage.setItem("player_id", p.id);
 
-    await supabase.rpc("ensure_monthly_progress", {
-      p_player_id: p.id,
-      p_year: year,
-      p_month: month,
-    });
-
-    const { data: mp } = await supabase
-      .from("monthly_progress")
-      .select("*")
-      .eq("player_id", p.id)
-      .eq("year", year)
-      .eq("month", month)
-      .maybeSingle();
-
-    setProgress(mp || { level: 1, xp: 0 });
-
-    const { data: rank } = await supabase
-      .from("monthly_progress")
-      .select("xp, players(nick, avatar_url)")
-      .eq("year", year)
-      .eq("month", month)
-      .order("xp", { ascending: false });
-
-    setRanking(rank || []);
-
-    const { data: q } = await supabase
-      .from("quests_with_state")
-      .select("*")
-      .neq("state", "hidden")
-      .order("state", { ascending: false });
-
-    setQuests(q || []);
-
-    // KRONIKA – bezpiecznie
-    const { data: c, error: cErr } = await supabase
-      .from("chronicle")
-      .select("id, message, created_at, players(nick, avatar_url)")
-      .order("created_at", { ascending: false })
-      .limit(20);
-
-    setChronicle(cErr ? [] : c || []);
-
-    // PARAGONY – bezpiecznie
-    const { data: r, error: rErr } = await supabase
-      .from("receipts")
-      .select("id, amount, created_at, players(nick)")
-      .order("created_at", { ascending: false });
-
-    setReceipts(rErr ? [] : r || []);
+    await Promise.all([
+      loadProgress(player.id),
+      loadQuests(),
+      loadChronicle(),
+      loadAchievements(player.id),
+      loadReceipts()
+    ]);
 
     setLoading(false);
   }
 
-  async function completeQuest(id) {
-    await supabase.rpc("complete_quest", {
-      p_player_id: player.id,
-      p_quest_id: id,
-    });
-    loadPlayer(player);
+  async function loadProgress(playerId) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+
+    const { data } = await supabase
+      .from("monthly_progress")
+      .select("*")
+      .eq("player_id", playerId)
+      .eq("year", year)
+      .eq("month", month)
+      .single();
+
+    setProgress(data || { level: 1, xp: 0 });
   }
 
-  // ===== LOGIN =====
-  if (!player) {
+  async function loadQuests() {
+    const { data } = await supabase.from("quests").select("*");
+    setQuests(data || []);
+
+    /* QUESTY NADCHODZĄCE */
+    const upcomingList = (data || []).filter(q => q.frequency_days > 1);
+    setUpcoming(upcomingList);
+  }
+
+  async function loadChronicle() {
+    const { data } = await supabase
+      .from("chronicle")
+      .select("*, players(nick, avatar_url)")
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    setChronicle(data || []);
+  }
+
+  async function loadAchievements(playerId) {
+    const { data } = await supabase
+      .from("player_achievements")
+      .select("*, achievements(title)")
+      .eq("player_id", playerId);
+
+    setAchievements(data || []);
+  }
+
+  async function loadReceipts() {
+    const { data } = await supabase
+      .from("receipts")
+      .select("*, players(nick)")
+      .order("added_at", { ascending: false });
+
+    setReceipts(data || []);
+  }
+
+  /* ===========================
+     QUESTY
+  =========================== */
+
+  async function completeQuest(questId) {
+    if (!currentPlayer) return;
+
+    setLoading(true);
+    await supabase.rpc("complete_quest", {
+      p_player_id: currentPlayer.id,
+      p_quest_id: questId
+    });
+
+    await Promise.all([
+      loadProgress(currentPlayer.id),
+      loadChronicle()
+    ]);
+
+    setLoading(false);
+  }
+
+  /* ===========================
+     RENDER
+  =========================== */
+
+  if (!currentPlayer) {
     return (
-      <main style={styles.login}>
-        <h1>Księga Domostwa</h1>
-        <div style={styles.loginGrid}>
-          {players.map((p) => (
-            <button
-              key={p.id}
-              style={styles.loginCard}
-              onClick={() => loadPlayer(p)}
-            >
-              <img src={p.avatar_url} style={styles.loginAvatar} />
-              <span>{p.nick}</span>
-            </button>
+      <div style={styles.login}>
+        <h1>📖 Księga Domostwa</h1>
+        <div style={styles.netflix}>
+          {players.map(p => (
+            <div key={p.id} style={styles.avatarCard} onClick={() => selectPlayer(p)}>
+              <img src={p.avatar_url} style={styles.avatarBig} />
+              <div>{p.nick}</div>
+            </div>
           ))}
         </div>
-      </main>
+      </div>
     );
   }
 
-  // ===== LOADING =====
-  if (loading || !progress) {
-    return (
-      <main style={styles.app}>
-        <div style={{ textAlign: "center", marginTop: 40 }}>
-          ⏳ Ładowanie świata…
-        </div>
-      </main>
-    );
-  }
+  const level = safe(progress?.level, 1);
+  const xp = safe(progress?.xp, 0);
+  const xpNext = xpToNext(level);
 
-  // ===== APP =====
   return (
-    <main style={styles.app}>
+    <div style={styles.page}>
       {/* PANEL GRACZA */}
-      <section style={styles.card}>
-        <img src={player.avatar_url} style={styles.avatar} />
+      <div style={styles.playerPanel}>
+        <img src={currentPlayer.avatar_url} style={styles.avatar} />
         <div>
-          <strong>{player.nick}</strong>
-          <div>{player.active_title || ""}</div>
-          <div>
-            Poziom {progress.level} · XP {progress.xp}/{progress.level * 100}
-          </div>
+          <h2>{currentPlayer.nick}</h2>
+          <div>{safe(currentPlayer.title)}</div>
+          <div>Poziom {level} • XP {xp}/{xpNext}</div>
         </div>
-      </section>
+      </div>
 
-      {/* RANKING */}
-      <section style={styles.monthBar}>
-        {ranking.map((r, i) => (
-          <div key={i}>
-            {medals[i]} {r.players?.nick || "—"}
-            {i === 0 && rewards[r.players?.nick] && (
-              <> — NAGRODA: {rewards[r.players.nick]}</>
-            )}
-          </div>
-        ))}
-      </section>
-
-      {/* ZAKŁADKI */}
-      <nav style={styles.tabs}>
-        {[
-          ["main", "Główna"],
-          ["chronicle", "Kronika"],
-          ["receipts", "Skrzynia"],
-        ].map(([k, label]) => (
+      {/* TABS */}
+      <div style={styles.tabs}>
+        {["main", "achievements", "chronicle", "receipts"].map(t => (
           <button
-            key={k}
-            onClick={() => setTab(k)}
-            style={{
-              ...styles.tabBtn,
-              background: tab === k ? "#4b3a73" : "#2c2440",
-            }}
+            key={t}
+            onClick={() => setTab(t)}
+            style={tab === t ? styles.tabActive : styles.tab}
           >
-            {label}
+            {t === "main" ? "Główna" :
+             t === "achievements" ? "Osiągnięcia" :
+             t === "chronicle" ? "Kronika" : "Skrzynia"}
           </button>
         ))}
-      </nav>
+      </div>
 
       {/* GŁÓWNA */}
       {tab === "main" && (
-        <section style={styles.card}>
-          <h3>Questy</h3>
-          {quests.map((q) => (
-            <div key={q.id} style={{ opacity: q.state === "upcoming" ? 0.5 : 1 }}>
-              <strong>
-                {q.state === "emergency" && "⚠ "}
-                {q.state === "upcoming" && "⏳ "}
-                {q.name}
-              </strong>
-              {q.state === "active" || q.state === "emergency" ? (
-                <button
-                  style={styles.smallBtn}
-                  onClick={() => completeQuest(q.id)}
-                >
-                  Wykonane
-                </button>
-              ) : (
-                <span> Dostępne za {q.days_until_active} dni</span>
-              )}
+        <>
+          <h3>🔥 Aktywne Questy</h3>
+          {quests.map(q => (
+            <div key={q.id} style={styles.quest}>
+              <strong>{q.name}</strong>
+              <div>⏱ {q.time_minutes} min • ⭐ {q.base_xp} XP</div>
+              <button onClick={() => completeQuest(q.id)}>Wykonane</button>
             </div>
           ))}
-        </section>
+
+          <h3 style={{ opacity: 0.6 }}>⏳ Nadchodzące</h3>
+          {upcoming.map(q => (
+            <div key={q.id} style={styles.upcoming}>
+              {q.name}
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* OSIĄGNIĘCIA */}
+      {tab === "achievements" && (
+        <>
+          <h3>🏆 Osiągnięcia</h3>
+          {achievements.map(a => (
+            <div key={a.id}>{a.achievements?.title}</div>
+          ))}
+        </>
       )}
 
       {/* KRONIKA */}
       {tab === "chronicle" && (
-        <section style={styles.cardDark}>
-          {chronicle.length === 0 && <em>Brak wpisów w kronice.</em>}
-          {chronicle.map((c) => (
-            <div key={c.id} style={styles.chronoLine}>
-              {c.players?.avatar_url && (
-                <img
-                  src={c.players.avatar_url}
-                  style={styles.chronoAvatar}
-                />
-              )}
-              <span>
-                <strong>{c.players?.nick || "—"}</strong> {c.message}
-              </span>
+        <>
+          <h3>📜 Kronika</h3>
+          {chronicle.length === 0 && <i>Brak wpisów</i>}
+          {chronicle.map(c => (
+            <div key={c.id} style={styles.chronicle}>
+              <strong>{c.players?.nick}</strong>: {c.message}
             </div>
           ))}
-        </section>
+        </>
       )}
 
-      {/* SKRZYNIA PARAGONÓW */}
+      {/* SKRZYNIA */}
       {tab === "receipts" && (
-        <section style={styles.card}>
-          {receipts.length === 0 && <em>Brak paragonów.</em>}
-          {receipts.map((r) => (
+        <>
+          <h3>🧾 Skrzynia Paragonów</h3>
+          {receipts.map(r => (
             <div key={r.id}>
-              {r.players?.nick || "—"} · {r.amount} zł
+              {r.players?.nick} • {r.amount} zł
             </div>
           ))}
-        </section>
+        </>
       )}
-    </main>
+
+      {loading && <div style={styles.loading}>Ładowanie…</div>}
+    </div>
   );
 }
 
+/* ===========================
+   STYLE (mobile-first)
+=========================== */
+
 const styles = {
-  app: {
+  page: {
+    background: "linear-gradient(#1b102a, #0f081a)",
     minHeight: "100vh",
-    background: "#181421",
-    color: "#f1edf9",
-    padding: 16,
-    fontFamily: "serif",
+    color: "#eee",
+    padding: 12
   },
   login: {
     minHeight: "100vh",
-    background: "#181421",
-    color: "#f1edf9",
+    background: "#0f081a",
+    color: "#fff",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    paddingTop: 40,
+    justifyContent: "center"
   },
-  loginGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, 1fr)",
-    gap: 20,
-    marginTop: 40,
-  },
-  loginCard: {
-    background: "none",
-    border: "none",
-    color: "#fff",
-    textAlign: "center",
-  },
-  loginAvatar: {
-    width: 120,
-    height: 120,
-    borderRadius: "50%",
-    border: "3px solid #c9a86a",
-  },
-  card: {
-    background: "#241c33",
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 12,
-  },
-  cardDark: {
-    background: "#1f192d",
-    borderRadius: 14,
-    padding: 12,
-  },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: "50%",
-    border: "3px solid #c9a86a",
-  },
-  monthBar: {
-    fontSize: 13,
-    marginBottom: 12,
-  },
-  tabs: {
+  netflix: {
     display: "flex",
-    gap: 6,
-    marginBottom: 12,
+    gap: 24,
+    flexWrap: "wrap",
+    justifyContent: "center"
   },
-  tabBtn: {
-    flex: 1,
-    border: "none",
-    color: "#fff",
+  avatarCard: { cursor: "pointer", textAlign: "center" },
+  avatarBig: { width: 120, borderRadius: "50%" },
+  playerPanel: {
+    display: "flex",
+    gap: 12,
+    background: "#2a1d44",
+    padding: 12,
+    borderRadius: 12
+  },
+  avatar: { width: 64, borderRadius: "50%" },
+  tabs: { display: "flex", gap: 8, marginTop: 12 },
+  tab: { flex: 1, padding: 8 },
+  tabActive: { flex: 1, padding: 8, background: "#5c4b8a" },
+  quest: {
+    background: "#241a38",
+    marginTop: 8,
     padding: 8,
-    borderRadius: 8,
+    borderRadius: 8
   },
-  smallBtn: {
-    marginLeft: 8,
-    background: "#4b3a73",
-    border: "none",
-    color: "#fff",
-    padding: "4px 8px",
-    borderRadius: 6,
+  upcoming: {
+    opacity: 0.4,
+    padding: 6
   },
-  chronoLine: {
-    display: "flex",
-    gap: 8,
-    alignItems: "center",
-    marginBottom: 6,
+  chronicle: {
+    opacity: 0.8,
+    fontSize: 14,
+    marginBottom: 4
   },
-  chronoAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: "50%",
-  },
+  loading: {
+    position: "fixed",
+    bottom: 10,
+    right: 10
+  }
 };
