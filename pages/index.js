@@ -6,6 +6,21 @@ const supabase = createClient(
   "sb_publishable_dm5fyZedKgGD3OccGT2yDg_38bv-Efd"
 );
 
+/* ===== helper: human readable time ===== */
+function timeAgo(dateString) {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffDays = Math.floor(
+    (now - date) / (1000 * 60 * 60 * 24)
+  );
+
+  if (diffDays === 0) return "dzisiaj";
+  if (diffDays === 1) return "wczoraj";
+  if (diffDays < 7) return `${diffDays} dni temu`;
+
+  return date.toLocaleDateString("pl-PL");
+}
+
 export default function Home() {
   const [players, setPlayers] = useState([]);
   const [playerId, setPlayerId] = useState(null);
@@ -19,9 +34,7 @@ export default function Home() {
   const year = new Date().getFullYear();
   const month = new Date().getMonth() + 1;
 
-  /* =======================
-     LOAD PLAYERS
-  ======================= */
+  /* ===== LOAD PLAYERS ===== */
   useEffect(() => {
     supabase
       .from("players")
@@ -29,9 +42,7 @@ export default function Home() {
       .then(({ data }) => setPlayers(data || []));
   }, []);
 
-  /* =======================
-     LOAD PROGRESS
-  ======================= */
+  /* ===== LOAD PROGRESS ===== */
   useEffect(() => {
     if (!playerId) return;
 
@@ -70,9 +81,7 @@ export default function Home() {
     loadProgress();
   }, [playerId]);
 
-  /* =======================
-     LOAD QUESTS (GLOBAL)
-  ======================= */
+  /* ===== LOAD QUESTS (GLOBAL) ===== */
   useEffect(() => {
     if (!playerId) return;
 
@@ -98,9 +107,7 @@ export default function Home() {
     loadQuests();
   }, [playerId]);
 
-  /* =======================
-     LOAD RECENT ACTIVITY
-  ======================= */
+  /* ===== LOAD RECENT ACTIVITY ===== */
   useEffect(() => {
     const loadRecent = async () => {
       const { data } = await supabase
@@ -119,9 +126,7 @@ export default function Home() {
     loadRecent();
   }, []);
 
-  /* =======================
-     COMPLETE QUEST
-  ======================= */
+  /* ===== COMPLETE QUEST ===== */
   const completeQuest = async (questId) => {
     setLoading(true);
 
@@ -136,80 +141,174 @@ export default function Home() {
       return;
     }
 
-    // refresh everything
-    setPlayerId((prev) => prev);
+    setPlayerId((prev) => prev); // refresh
     setLoading(false);
   };
 
-  /* =======================
-     UI
-  ======================= */
+  /* ===== UI ===== */
 
   if (!playerId) {
     return (
-      <main style={{ padding: 20 }}>
-        <h1>Księga Domostwa</h1>
-        <p>Wybierz gracza:</p>
+      <main className="container">
+        <h1>📖 Księga Domostwa</h1>
+        <p className="subtitle">Wybierz bohatera:</p>
 
         {players.map((p) => (
           <button
             key={p.id}
+            className="btn"
             onClick={() => {
               setPlayerId(p.id);
               setPlayerNick(p.nick);
             }}
-            style={{ display: "block", marginBottom: 10, padding: 10 }}
           >
             {p.nick}
           </button>
         ))}
+
+        <style jsx>{styles}</style>
       </main>
     );
   }
 
   if (loading || !progress) {
-    return <p style={{ padding: 20 }}>Ładowanie…</p>;
+    return (
+      <main className="container">
+        <p>⏳ Przeglądanie kronik…</p>
+        <style jsx>{styles}</style>
+      </main>
+    );
   }
 
   const xpNeeded = progress.level * 100;
 
   return (
-    <main style={{ padding: 20 }}>
-      <h1>Księga Domostwa</h1>
+    <main className="container">
+      <h1>📖 Księga Domostwa</h1>
 
-      <h2>{playerNick}</h2>
-      <p>
-        Poziom: {progress.level} <br />
-        XP: {progress.xp}/{xpNeeded}
-      </p>
+      <section className="card">
+        <h2>{playerNick}</h2>
+        <p>
+          Poziom: <strong>{progress.level}</strong><br />
+          XP: <strong>{progress.xp}/{xpNeeded}</strong>
+        </p>
+      </section>
 
-      <h3>📜 Ostatnie dokonania Gildii</h3>
-      {recent.length === 0 && <p>Jeszcze cisza w kronikach…</p>}
+      <section className="card">
+        <h3>📜 Kroniki Gildii</h3>
+        {recent.length === 0 && (
+          <p className="muted">Brak wieści z wypraw…</p>
+        )}
 
-      {recent.map((r, i) => (
-        <div key={i} style={{ fontSize: 14, marginBottom: 4 }}>
-          <strong>{r.players?.nick}</strong> wykonał(a){" "}
-          <em>{r.quests?.name}</em>
-        </div>
-      ))}
-
-      <h3>🗺️ Questy do wykonania</h3>
-
-      {quests.length === 0 && <p>Brak questów 🎉</p>}
-
-      {quests.map((q) => (
-        <div
-          key={q.id}
-          style={{ border: "1px solid #555", padding: 10, marginBottom: 10 }}
-        >
-          <strong>{q.name}</strong>
-          <div>
-            {q.time_minutes} min • {q.base_xp} XP
+        {recent.map((r, i) => (
+          <div key={i} className="log">
+            <strong>{r.players?.nick}</strong>{" "}
+            wykonał(a) <em>{r.quests?.name}</em>
+            <span className="time">
+              {timeAgo(r.completed_at)}
+            </span>
           </div>
+        ))}
+      </section>
 
-          <button onClick={() => completeQuest(q.id)}>Wykonane</button>
-        </div>
-      ))}
+      <section className="card">
+        <h3>🗺️ Questy do wykonania</h3>
+
+        {quests.length === 0 && (
+          <p className="muted">Domostwo chwilowo w spokoju ✨</p>
+        )}
+
+        {quests.map((q) => (
+          <div key={q.id} className="quest">
+            <strong>{q.name}</strong>
+            <div className="muted">
+              {q.time_minutes} min • {q.base_xp} XP
+            </div>
+
+            <button
+              className="btn small"
+              onClick={() => completeQuest(q.id)}
+            >
+              Wykonane
+            </button>
+          </div>
+        ))}
+      </section>
+
+      <style jsx>{styles}</style>
     </main>
   );
 }
+
+/* ===== STYLES ===== */
+const styles = `
+.container {
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 16px;
+  font-family: serif;
+  background: #1e1b16;
+  color: #f4f1ea;
+  min-height: 100vh;
+}
+
+h1 {
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.subtitle {
+  text-align: center;
+  color: #c9c4b8;
+}
+
+.card {
+  background: #2a251d;
+  border: 1px solid #3b3428;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.quest {
+  border-top: 1px solid #3b3428;
+  padding-top: 10px;
+  margin-top: 10px;
+}
+
+.log {
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.time {
+  display: block;
+  font-size: 12px;
+  color: #b9b2a3;
+}
+
+.muted {
+  color: #b9b2a3;
+  font-size: 14px;
+}
+
+.btn {
+  width: 100%;
+  padding: 10px;
+  margin-top: 10px;
+  background: #6b4f1d;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn.small {
+  width: auto;
+  padding: 6px 12px;
+}
+
+.btn:hover {
+  background: #8a6a2f;
+}
+`;
