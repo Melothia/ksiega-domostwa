@@ -15,6 +15,7 @@ export default function Home() {
   const [progress, setProgress] = useState(null);
   const [achievements, setAchievements] = useState([]);
   const [owned, setOwned] = useState([]);
+  const [tab, setTab] = useState("main"); // main | achievements
   const [loading, setLoading] = useState(false);
 
   const now = new Date();
@@ -120,35 +121,66 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ACHIEVEMENTY */}
-      <section style={styles.card}>
-        <h3>🏆 Osiągnięcia</h3>
+      {/* TABS */}
+      <div style={styles.tabs}>
+        <button
+          style={{
+            ...styles.tabBtn,
+            background: tab === "main" ? "#6b4f1d" : "#3a342a",
+          }}
+          onClick={() => setTab("main")}
+        >
+          🏠 Główna
+        </button>
+        <button
+          style={{
+            ...styles.tabBtn,
+            background: tab === "achievements" ? "#6b4f1d" : "#3a342a",
+          }}
+          onClick={() => setTab("achievements")}
+        >
+          🏆 Osiągnięcia
+        </button>
+      </div>
 
-        {achievements.map((a) => {
-          const unlocked = owned.includes(a.id);
-          return (
-            <div
-              key={a.id}
-              style={{
-                ...styles.line,
-                opacity: unlocked ? 1 : 0.35,
-                cursor: unlocked ? "pointer" : "default",
-              }}
-              onClick={() => unlocked && setTitle(a.title)}
-            >
-              <strong>{a.title}</strong>
-              <div style={{ fontSize: 13, color: "#bbb" }}>
-                {a.condition}
-              </div>
-              {unlocked && (
-                <div style={{ fontSize: 12, color: "#c9a86a" }}>
-                  Kliknij, aby ustawić tytuł
+      {/* MAIN VIEW */}
+      {tab === "main" && (
+        <section style={styles.card}>
+          <em>Tu wraca poprzedni widok: questy, kronika, gameplay.</em>
+        </section>
+      )}
+
+      {/* ACHIEVEMENTS VIEW */}
+      {tab === "achievements" && (
+        <section style={styles.card}>
+          <h3>🏆 Osiągnięcia</h3>
+
+          {achievements.map((a) => {
+            const unlocked = owned.includes(a.id);
+            return (
+              <div
+                key={a.id}
+                style={{
+                  ...styles.line,
+                  opacity: unlocked ? 1 : 0.35,
+                  cursor: unlocked ? "pointer" : "default",
+                }}
+                onClick={() => unlocked && setTitle(a.title)}
+              >
+                <strong>{a.title}</strong>
+                <div style={{ fontSize: 13, color: "#bbb" }}>
+                  {a.condition}
                 </div>
-              )}
-            </div>
-          );
-        })}
-      </section>
+                {unlocked && (
+                  <div style={{ fontSize: 12, color: "#c9a86a" }}>
+                    Kliknij, aby ustawić tytuł
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </section>
+      )}
     </main>
   );
 }
@@ -166,6 +198,17 @@ const styles = {
     padding: 14,
     borderRadius: 10,
     marginBottom: 16,
+  },
+  tabs: {
+    display: "flex",
+    gap: 8,
+    marginBottom: 12,
+  },
+  tabBtn: {
+    flex: 1,
+    padding: 10,
+    border: "none",
+    color: "#fff",
   },
   playerBtn: {
     display: "flex",
