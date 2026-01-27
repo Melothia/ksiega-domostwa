@@ -15,6 +15,7 @@ export default function LoginScreen({ players, onSelect }) {
             <img
               src={p.avatar_url}
               alt={p.nick}
+              className="login-avatar"
             />
             <h3>{p.nick}</h3>
           </div>
