@@ -12,7 +12,10 @@ export default function LoginScreen({ players, onSelect }) {
             className="login-card"
             onClick={() => onSelect(p)}
           >
-            <img src={p.avatar} alt={p.nick} />
+            <img
+              src={p.avatar_url}
+              alt={p.nick}
+            />
             <h3>{p.nick}</h3>
           </div>
         ))}
@@ -20,4 +23,3 @@ export default function LoginScreen({ players, onSelect }) {
     </div>
   );
 }
-
