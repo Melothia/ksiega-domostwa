@@ -11,7 +11,7 @@ const PLAYERS = [
   { id: "benditt", name: "Benditt", avatar: "✨" }
 ];
 
-const QUESTS = [
+const BASE_QUESTS = [
   { id: "em1", name: "🚨 Zalane Królestwo (łazienka)", time: 45, xp: 130, slots: 1, emergency: true },
   { id: "em2", name: "🚨 Najazd Kurzu", time: 20, xp: 80, slots: 1, emergency: true },
 
@@ -22,12 +22,27 @@ const QUESTS = [
 ];
 
 /* =====================
-   XP & LEVEL LOGIKA
+   XP & LEVEL
 ===================== */
 
 function xpForNextLevel(level) {
   const safeLevel = Number(level) || 1;
   return 100 + (safeLevel - 1) * 50;
+}
+
+function applyXp(player, gainedXp) {
+  let level = player.level;
+  let xp = player.xp + gainedXp;
+
+  let needed = xpForNextLevel(level);
+
+  while (xp >= needed) {
+    xp -= needed;
+    level += 1;
+    needed = xpForNextLevel(level);
+  }
+
+  return { ...player, level, xp };
 }
 
 /* =====================
@@ -36,37 +51,41 @@ function xpForNextLevel(level) {
 
 export default function Home() {
   const [player, setPlayer] = useState(null);
+  const [quests, setQuests] = useState(BASE_QUESTS);
 
   useEffect(() => {
     const saved = localStorage.getItem("ksiega_player");
     if (saved) {
       const parsed = JSON.parse(saved);
-
-      // 🔒 ZABEZPIECZENIE DANYCH
       const safePlayer = {
         ...parsed,
         level: Number(parsed.level) || 1,
         xp: Number(parsed.xp) || 0
       };
-
       localStorage.setItem("ksiega_player", JSON.stringify(safePlayer));
       setPlayer(safePlayer);
     }
   }, []);
 
   function selectPlayer(p) {
-    const playerData = {
-      ...p,
-      level: 1,
-      xp: 0
-    };
+    const playerData = { ...p, level: 1, xp: 0 };
     localStorage.setItem("ksiega_player", JSON.stringify(playerData));
     setPlayer(playerData);
+    setQuests(BASE_QUESTS);
   }
 
   function logout() {
     localStorage.removeItem("ksiega_player");
     setPlayer(null);
+  }
+
+  function completeQuest(quest) {
+    const updatedPlayer = applyXp(player, quest.xp);
+    localStorage.setItem("ksiega_player", JSON.stringify(updatedPlayer));
+    setPlayer(updatedPlayer);
+
+    // usuwamy quest z listy (tymczasowo)
+    setQuests(prev => prev.filter(q => q.id !== quest.id));
   }
 
   /* =====================
@@ -83,20 +102,20 @@ export default function Home() {
         <div style={styles.panel}>
           <div style={styles.avatarBig}>{player.avatar}</div>
           <h2>{player.name}</h2>
-          <p style={{ opacity: 0.8 }}>
+          <p style={{ opacity: 0.85 }}>
             Poziom: {player.level} • XP: {player.xp}/{xpNeeded}
           </p>
         </div>
 
         <div style={styles.questWrapper}>
           <h3>🚨 Emergency</h3>
-          {QUESTS.filter(q => q.emergency).map(q => (
-            <QuestCard key={q.id} quest={q} />
+          {quests.filter(q => q.emergency).map(q => (
+            <QuestCard key={q.id} quest={q} onDone={completeQuest} />
           ))}
 
           <h3 style={{ marginTop: "1.5rem" }}>🗓️ Do wykonania</h3>
-          {QUESTS.filter(q => !q.emergency).map(q => (
-            <QuestCard key={q.id} quest={q} />
+          {quests.filter(q => !q.emergency).map(q => (
+            <QuestCard key={q.id} quest={q} onDone={completeQuest} />
           ))}
         </div>
 
@@ -133,16 +152,22 @@ export default function Home() {
 }
 
 /* =====================
-   KARTA QUESTA
+   QUEST CARD
 ===================== */
 
-function QuestCard({ quest }) {
+function QuestCard({ quest, onDone }) {
   return (
     <div style={styles.questCard}>
       <strong>{quest.name}</strong>
       <div style={styles.questMeta}>
         ⏱ {quest.time} min • ⭐ {quest.xp} XP • 👥 {quest.slots}
       </div>
+      <button
+        style={styles.doneButton}
+        onClick={() => onDone(quest)}
+      >
+        Wykonane
+      </button>
     </div>
   );
 }
@@ -212,12 +237,22 @@ const styles = {
     border: "1px solid #333",
     borderRadius: "12px",
     padding: "1rem",
-    marginTop: "0.5rem"
+    marginTop: "0.75rem"
   },
   questMeta: {
     fontSize: "0.85rem",
     opacity: 0.75,
     marginTop: "0.25rem"
+  },
+  doneButton: {
+    marginTop: "0.75rem",
+    background: "#2a2a2a",
+    border: "1px solid #444",
+    color: "#eaeaea",
+    padding: "0.5rem 0.75rem",
+    borderRadius: "8px",
+    cursor: "pointer",
+    width: "100%"
   },
   logout: {
     marginTop: "2rem",
