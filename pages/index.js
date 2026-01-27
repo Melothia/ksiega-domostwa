@@ -21,6 +21,9 @@ export default function Home() {
   const [progress, setProgress] = useState(null);
   const [ranking, setRanking] = useState([]);
   const [quests, setQuests] = useState([]);
+  const [chronicle, setChronicle] = useState([]);
+  const [receipts, setReceipts] = useState([]);
+  const [tab, setTab] = useState("main");
   const [loading, setLoading] = useState(false);
 
   const now = new Date();
@@ -80,6 +83,24 @@ export default function Home() {
       .order("state", { ascending: false });
 
     setQuests(q || []);
+
+    // KRONIKA – bezpiecznie
+    const { data: c, error: cErr } = await supabase
+      .from("chronicle")
+      .select("id, message, created_at, players(nick, avatar_url)")
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    setChronicle(cErr ? [] : c || []);
+
+    // PARAGONY – bezpiecznie
+    const { data: r, error: rErr } = await supabase
+      .from("receipts")
+      .select("id, amount, created_at, players(nick)")
+      .order("created_at", { ascending: false });
+
+    setReceipts(rErr ? [] : r || []);
+
     setLoading(false);
   }
 
@@ -142,7 +163,7 @@ export default function Home() {
       <section style={styles.monthBar}>
         {ranking.map((r, i) => (
           <div key={i}>
-            {medals[i]} {r.players?.nick}
+            {medals[i]} {r.players?.nick || "—"}
             {i === 0 && rewards[r.players?.nick] && (
               <> — NAGRODA: {rewards[r.players.nick]}</>
             )}
@@ -150,29 +171,83 @@ export default function Home() {
         ))}
       </section>
 
-      {/* QUESTY */}
-      <section style={styles.card}>
-        <h3>Questy</h3>
-        {quests.map((q) => (
-          <div key={q.id} style={{ opacity: q.state === "upcoming" ? 0.5 : 1 }}>
-            <strong>
-              {q.state === "emergency" && "⚠ "}
-              {q.state === "upcoming" && "⏳ "}
-              {q.name}
-            </strong>
-            {q.state === "active" || q.state === "emergency" ? (
-              <button
-                style={styles.smallBtn}
-                onClick={() => completeQuest(q.id)}
-              >
-                Wykonane
-              </button>
-            ) : (
-              <span> Dostępne za {q.days_until_active} dni</span>
-            )}
-          </div>
+      {/* ZAKŁADKI */}
+      <nav style={styles.tabs}>
+        {[
+          ["main", "Główna"],
+          ["chronicle", "Kronika"],
+          ["receipts", "Skrzynia"],
+        ].map(([k, label]) => (
+          <button
+            key={k}
+            onClick={() => setTab(k)}
+            style={{
+              ...styles.tabBtn,
+              background: tab === k ? "#4b3a73" : "#2c2440",
+            }}
+          >
+            {label}
+          </button>
         ))}
-      </section>
+      </nav>
+
+      {/* GŁÓWNA */}
+      {tab === "main" && (
+        <section style={styles.card}>
+          <h3>Questy</h3>
+          {quests.map((q) => (
+            <div key={q.id} style={{ opacity: q.state === "upcoming" ? 0.5 : 1 }}>
+              <strong>
+                {q.state === "emergency" && "⚠ "}
+                {q.state === "upcoming" && "⏳ "}
+                {q.name}
+              </strong>
+              {q.state === "active" || q.state === "emergency" ? (
+                <button
+                  style={styles.smallBtn}
+                  onClick={() => completeQuest(q.id)}
+                >
+                  Wykonane
+                </button>
+              ) : (
+                <span> Dostępne za {q.days_until_active} dni</span>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
+
+      {/* KRONIKA */}
+      {tab === "chronicle" && (
+        <section style={styles.cardDark}>
+          {chronicle.length === 0 && <em>Brak wpisów w kronice.</em>}
+          {chronicle.map((c) => (
+            <div key={c.id} style={styles.chronoLine}>
+              {c.players?.avatar_url && (
+                <img
+                  src={c.players.avatar_url}
+                  style={styles.chronoAvatar}
+                />
+              )}
+              <span>
+                <strong>{c.players?.nick || "—"}</strong> {c.message}
+              </span>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {/* SKRZYNIA PARAGONÓW */}
+      {tab === "receipts" && (
+        <section style={styles.card}>
+          {receipts.length === 0 && <em>Brak paragonów.</em>}
+          {receipts.map((r) => (
+            <div key={r.id}>
+              {r.players?.nick || "—"} · {r.amount} zł
+            </div>
+          ))}
+        </section>
+      )}
     </main>
   );
 }
@@ -218,6 +293,11 @@ const styles = {
     padding: 12,
     marginBottom: 12,
   },
+  cardDark: {
+    background: "#1f192d",
+    borderRadius: 14,
+    padding: 12,
+  },
   avatar: {
     width: 72,
     height: 72,
@@ -228,6 +308,18 @@ const styles = {
     fontSize: 13,
     marginBottom: 12,
   },
+  tabs: {
+    display: "flex",
+    gap: 6,
+    marginBottom: 12,
+  },
+  tabBtn: {
+    flex: 1,
+    border: "none",
+    color: "#fff",
+    padding: 8,
+    borderRadius: 8,
+  },
   smallBtn: {
     marginLeft: 8,
     background: "#4b3a73",
@@ -235,5 +327,16 @@ const styles = {
     color: "#fff",
     padding: "4px 8px",
     borderRadius: 6,
+  },
+  chronoLine: {
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  chronoAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: "50%",
   },
 };
