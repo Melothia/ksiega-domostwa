@@ -1,3 +1,4 @@
+// ❗ UWAGA: to jest PEŁNY plik – podmień CAŁOŚĆ
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
@@ -6,18 +7,13 @@ const supabase = createClient(
   "sb_publishable_dm5fyZedKgGD3OccGT2yDg_38bv-Efd"
 );
 
-/* ===== helper: human readable time ===== */
 function timeAgo(dateString) {
   const date = new Date(dateString);
   const now = new Date();
-  const diffDays = Math.floor(
-    (now - date) / (1000 * 60 * 60 * 24)
-  );
-
+  const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
   if (diffDays === 0) return "dzisiaj";
   if (diffDays === 1) return "wczoraj";
   if (diffDays < 7) return `${diffDays} dni temu`;
-
   return date.toLocaleDateString("pl-PL");
 }
 
@@ -25,7 +21,6 @@ export default function Home() {
   const [players, setPlayers] = useState([]);
   const [playerId, setPlayerId] = useState(null);
   const [playerNick, setPlayerNick] = useState(null);
-
   const [progress, setProgress] = useState(null);
   const [quests, setQuests] = useState([]);
   const [recent, setRecent] = useState([]);
@@ -34,62 +29,35 @@ export default function Home() {
   const year = new Date().getFullYear();
   const month = new Date().getMonth() + 1;
 
-  /* ===== LOAD PLAYERS ===== */
   useEffect(() => {
-    supabase
-      .from("players")
-      .select("id, nick")
+    supabase.from("players").select("id, nick")
       .then(({ data }) => setPlayers(data || []));
   }, []);
 
-  /* ===== LOAD PROGRESS ===== */
   useEffect(() => {
     if (!playerId) return;
+    setLoading(true);
 
-    const loadProgress = async () => {
-      setLoading(true);
-
-      const { data } = await supabase
-        .from("monthly_progress")
-        .select("*")
-        .eq("player_id", playerId)
-        .eq("year", year)
-        .eq("month", month)
-        .single();
-
-      if (!data) {
-        const { data: created } = await supabase
-          .from("monthly_progress")
-          .insert({
-            player_id: playerId,
-            year,
-            month,
-            xp: 0,
-            level: 1,
-          })
-          .select()
-          .single();
-
-        setProgress(created);
-      } else {
+    supabase.from("monthly_progress")
+      .select("*")
+      .eq("player_id", playerId)
+      .eq("year", year)
+      .eq("month", month)
+      .single()
+      .then(({ data }) => {
         setProgress(data);
-      }
-
-      setLoading(false);
-    };
-
-    loadProgress();
+        setLoading(false);
+      });
   }, [playerId]);
 
-  /* ===== LOAD QUESTS (GLOBAL) ===== */
+  /* ===== QUESTS WITH EMERGENCY ===== */
   useEffect(() => {
     if (!playerId) return;
 
     const loadQuests = async () => {
-      const { data: allQuests } = await supabase
-        .from("quests")
-        .select("*")
-        .order("name");
+      const { data: all } = await supabase
+        .from("quests_with_status")
+        .select("*");
 
       const { data: completed } = await supabase
         .from("quest_completions")
@@ -97,90 +65,60 @@ export default function Home() {
         .gte("completed_at", new Date(year, month - 1, 1).toISOString())
         .lt("completed_at", new Date(year, month, 1).toISOString());
 
-      const completedIds = completed?.map((c) => c.quest_id) || [];
+      const completedIds = completed?.map(c => c.quest_id) || [];
 
-      setQuests(
-        (allQuests || []).filter((q) => !completedIds.includes(q.id))
-      );
+      const available = (all || [])
+        .filter(q => !completedIds.includes(q.id))
+        .sort((a, b) => b.is_emergency - a.is_emergency);
+
+      setQuests(available);
     };
 
     loadQuests();
   }, [playerId]);
 
-  /* ===== LOAD RECENT ACTIVITY ===== */
+  /* ===== RECENT ===== */
   useEffect(() => {
-    const loadRecent = async () => {
-      const { data } = await supabase
-        .from("quest_completions")
-        .select(`
-          completed_at,
-          quests ( name ),
-          players ( nick )
-        `)
-        .order("completed_at", { ascending: false })
-        .limit(5);
-
-      setRecent(data || []);
-    };
-
-    loadRecent();
+    supabase.from("quest_completions")
+      .select(`completed_at, quests(name), players(nick)`)
+      .order("completed_at", { ascending: false })
+      .limit(5)
+      .then(({ data }) => setRecent(data || []));
   }, []);
 
-  /* ===== COMPLETE QUEST ===== */
-  const completeQuest = async (questId) => {
+  const completeQuest = async (quest) => {
     setLoading(true);
 
     const { error } = await supabase.rpc("complete_quest", {
       p_player_id: playerId,
-      p_quest_id: questId,
+      p_quest_id: quest.id,
     });
 
-    if (error) {
-      alert(error.message);
-      setLoading(false);
-      return;
-    }
-
-    setPlayerId((prev) => prev); // refresh
+    if (error) alert(error.message);
     setLoading(false);
   };
-
-  /* ===== UI ===== */
 
   if (!playerId) {
     return (
       <main className="container">
         <h1>📖 Księga Domostwa</h1>
-        <p className="subtitle">Wybierz bohatera:</p>
-
-        {players.map((p) => (
-          <button
-            key={p.id}
-            className="btn"
+        {players.map(p => (
+          <button key={p.id} className="btn"
             onClick={() => {
               setPlayerId(p.id);
               setPlayerNick(p.nick);
-            }}
-          >
+            }}>
             {p.nick}
           </button>
         ))}
-
         <style jsx>{styles}</style>
       </main>
     );
   }
 
   if (loading || !progress) {
-    return (
-      <main className="container">
-        <p>⏳ Przeglądanie kronik…</p>
-        <style jsx>{styles}</style>
-      </main>
-    );
+    return <p className="container">⏳ Kroniki się przewracają…</p>;
   }
-
-  const xpNeeded = progress.level * 100;
 
   return (
     <main className="container">
@@ -188,47 +126,33 @@ export default function Home() {
 
       <section className="card">
         <h2>{playerNick}</h2>
-        <p>
-          Poziom: <strong>{progress.level}</strong><br />
-          XP: <strong>{progress.xp}/{xpNeeded}</strong>
-        </p>
+        <p>Poziom {progress.level} • XP {progress.xp}/{progress.level * 100}</p>
       </section>
 
       <section className="card">
         <h3>📜 Kroniki Gildii</h3>
-        {recent.length === 0 && (
-          <p className="muted">Brak wieści z wypraw…</p>
-        )}
-
         {recent.map((r, i) => (
           <div key={i} className="log">
-            <strong>{r.players?.nick}</strong>{" "}
-            wykonał(a) <em>{r.quests?.name}</em>
-            <span className="time">
-              {timeAgo(r.completed_at)}
-            </span>
+            <strong>{r.players.nick}</strong> wykonał(a){" "}
+            <em>{r.quests.name}</em>
+            <span className="time">{timeAgo(r.completed_at)}</span>
           </div>
         ))}
       </section>
 
       <section className="card">
-        <h3>🗺️ Questy do wykonania</h3>
+        <h3>🗺️ Questy</h3>
 
-        {quests.length === 0 && (
-          <p className="muted">Domostwo chwilowo w spokoju ✨</p>
-        )}
-
-        {quests.map((q) => (
-          <div key={q.id} className="quest">
+        {quests.map(q => (
+          <div key={q.id} className={`quest ${q.is_emergency ? "emergency" : ""}`}>
             <strong>{q.name}</strong>
+            {q.is_emergency && <span className="alert">⚠ EMERGENCY</span>}
             <div className="muted">
-              {q.time_minutes} min • {q.base_xp} XP
+              {q.time_minutes} min • {q.base_xp}
+              {q.is_emergency && " +30% XP"}
             </div>
 
-            <button
-              className="btn small"
-              onClick={() => completeQuest(q.id)}
-            >
+            <button className="btn small" onClick={() => completeQuest(q)}>
               Wykonane
             </button>
           </div>
@@ -240,28 +164,16 @@ export default function Home() {
   );
 }
 
-/* ===== STYLES ===== */
 const styles = `
 .container {
   max-width: 420px;
-  margin: 0 auto;
+  margin: auto;
   padding: 16px;
-  font-family: serif;
   background: #1e1b16;
   color: #f4f1ea;
   min-height: 100vh;
+  font-family: serif;
 }
-
-h1 {
-  text-align: center;
-  margin-bottom: 12px;
-}
-
-.subtitle {
-  text-align: center;
-  color: #c9c4b8;
-}
-
 .card {
   background: #2a251d;
   border: 1px solid #3b3428;
@@ -269,46 +181,24 @@ h1 {
   padding: 12px;
   margin-bottom: 16px;
 }
-
-.quest {
-  border-top: 1px solid #3b3428;
-  padding-top: 10px;
-  margin-top: 10px;
+.quest.emergency {
+  border-left: 4px solid #b63c2d;
+  padding-left: 8px;
 }
-
-.log {
-  font-size: 14px;
-  margin-bottom: 6px;
+.alert {
+  color: #ff6b5c;
+  margin-left: 6px;
 }
-
-.time {
-  display: block;
-  font-size: 12px;
-  color: #b9b2a3;
-}
-
-.muted {
-  color: #b9b2a3;
-  font-size: 14px;
-}
-
+.log { font-size: 14px; }
+.time { font-size: 12px; color: #b9b2a3; display: block; }
+.muted { color: #b9b2a3; font-size: 14px; }
 .btn {
   width: 100%;
-  padding: 10px;
-  margin-top: 10px;
   background: #6b4f1d;
   color: #fff;
-  border: none;
+  padding: 10px;
   border-radius: 6px;
-  cursor: pointer;
+  border: none;
 }
-
-.btn.small {
-  width: auto;
-  padding: 6px 12px;
-}
-
-.btn:hover {
-  background: #8a6a2f;
-}
+.btn.small { padding: 6px; margin-top: 6px; }
 `;
