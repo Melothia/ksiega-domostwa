@@ -88,9 +88,10 @@ export default function Home() {
 
       // odfiltruj wykonane questy
       const { data: completed } = await supabase
-        .from("quest_completions")
-        .select("quest_id")
-        .eq("player_id", playerId);
+  .from("quest_completions")
+  .select("quest_id")
+  .gte("completed_at", new Date(year, month - 1, 1).toISOString())
+  .lt("completed_at", new Date(year, month, 1).toISOString());
 
       const completedIds = completed?.map((c) => c.quest_id) || [];
 
