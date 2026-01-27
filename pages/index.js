@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
+/* ===== KOMPONENTY ===== */
 import LoginScreen from "../components/LoginScreen";
-import Layout from "../components/Layout";
+import Layout from "../components/Layouts";
 import Tabs from "../components/Tabs";
 import PlayerPanel from "../components/PlayerPanel";
 import RankingBar from "../components/RankingBar";
@@ -16,40 +17,14 @@ import ReceiptsView from "../components/ReceiptsView";
 
 import { getNextAvailableText } from "../lib/dateUtils";
 
-/* ===== KONFIGURACJA GRACZY ===== */
-const PLAYERS = [
-  {
-    id: "b45ef046-f815-4eda-8015-d9212d9ac2ee",
-    nick: "Melothy",
-    avatar: "/Melothy.png",
-    title: "Zaklinaczka Mopa",
-  },
-  {
-    id: "reu-id",
-    nick: "Reu",
-    avatar: "/Reu.png",
-    title: "Cień Domostwa",
-  },
-  {
-    id: "pshemcky-id",
-    nick: "Pshemcky",
-    avatar: "/Pshemcky.png",
-    title: "Strażnik Natury",
-  },
-  {
-    id: "benditt-id",
-    nick: "Benditt",
-    avatar: "/Benditt.png",
-    title: "Koci Kleryk",
-  },
-];
-
 export default function Home() {
-  /* ===== STANY ===== */
+  /* ===== SESJA ===== */
   const [player, setPlayer] = useState(null);
   const [tab, setTab] = useState("main");
   const [loading, setLoading] = useState(false);
 
+  /* ===== DANE GLOBALNE ===== */
+  const [players, setPlayers] = useState([]);
   const [progress, setProgress] = useState(null);
   const [ranking, setRanking] = useState([]);
   const [lastWinner, setLastWinner] = useState("—");
@@ -58,15 +33,38 @@ export default function Home() {
   const [upcoming, setUpcoming] = useState([]);
   const [slots, setSlots] = useState({});
 
-  /* ===== ŁADOWANIE DANYCH (HOOK ZAWSZE WYWOŁANY!) ===== */
+  /* ============================================================
+     LOGIN – ekran Netflixowy
+     ============================================================ */
+  if (!player) {
+    return (
+      <LoginScreen
+        players={players}
+        onSelect={setPlayer}
+      />
+    );
+  }
+
+  /* ============================================================
+     ŁADOWANIE WSZYSTKICH DANYCH
+     ============================================================ */
   useEffect(() => {
     if (!player) return;
 
     const loadAll = async () => {
       setLoading(true);
 
+      /* --- reset miesiąca --- */
       await supabase.rpc("reset_month_if_needed");
 
+      /* --- gracze --- */
+      const { data: pl } = await supabase
+        .from("players")
+        .select("id, nick, avatar_url, title");
+
+      setPlayers(pl ?? []);
+
+      /* --- progress gracza --- */
       const { data: mp } = await supabase
         .from("monthly_progress")
         .select("*")
@@ -75,23 +73,30 @@ export default function Home() {
 
       setProgress(mp ?? null);
 
+      /* --- ranking miesiąca --- */
       const { data: rank } = await supabase
         .from("monthly_progress")
-        .select("players(nick), level, xp")
+        .select("level, xp, players(nick)")
         .order("level", { ascending: false })
         .order("xp", { ascending: false });
 
       setRanking(
         (rank ?? []).map(r => ({
-          nick: r.players?.nick,
+          nick: r.players?.nick ?? "—",
           level: r.level,
         }))
       );
 
+      /* --- zwycięzca poprzedniego miesiąca --- */
       const { data: winner } = await supabase.rpc("last_month_winner");
       setLastWinner(winner ?? "—");
 
-      const { data: q } = await supabase.from("quests").select("*");
+      /* --- questy --- */
+      const { data: q } = await supabase
+        .from("quests")
+        .select("*");
+
+      /* --- sloty questów --- */
       const { data: s } = await supabase
         .from("quest_slots")
         .select("quest_id, players(nick)");
@@ -101,14 +106,15 @@ export default function Home() {
         if (!slotMap[row.quest_id]) slotMap[row.quest_id] = [];
         slotMap[row.quest_id].push(row.players.nick);
       });
-
       setSlots(slotMap);
 
+      /* --- rozdzielenie questów --- */
       const active = [];
       const future = [];
 
       (q ?? []).forEach(quest => {
-        quest.is_active ? active.push(quest) : future.push(quest);
+        if (quest.is_active) active.push(quest);
+        else future.push(quest);
       });
 
       setQuests(active);
@@ -120,25 +126,17 @@ export default function Home() {
     loadAll();
   }, [player]);
 
-  /* ===== LOGIN ===== */
-  if (!player) {
-    return (
-      <LoginScreen
-        players={PLAYERS}
-        onSelect={setPlayer}
-      />
-    );
-  }
-
-  /* ===== AKCJE QUESTÓW ===== */
+  /* ============================================================
+     AKCJE QUESTÓW
+     ============================================================ */
   const completeSolo = async quest => {
     setLoading(true);
     await supabase.rpc("complete_quest", {
       p_player_id: player.id,
       p_quest_id: quest.id,
     });
+    setPlayer({ ...player }); // trigger reload
     setLoading(false);
-    setPlayer({ ...player });
   };
 
   const completeGroup = async (quest, secondPlayerId) => {
@@ -148,25 +146,30 @@ export default function Home() {
       p_player_2: secondPlayerId,
       p_quest_id: quest.id,
     });
-    setLoading(false);
     setPlayer({ ...player });
+    setLoading(false);
   };
 
-  /* ===== RENDER ===== */
+  /* ============================================================
+     RENDER
+     ============================================================ */
   return (
     <Layout>
       <PlayerPanel player={player} progress={progress} />
+
       <RankingBar ranking={ranking} lastWinner={lastWinner} />
+
       <Tabs active={tab} onChange={setTab} />
 
-      {loading && <p>⏳ Ładowanie…</p>}
+      {loading && <p>⏳ Ładowanie danych…</p>}
 
+      {/* ===== GŁÓWNA ===== */}
       {tab === "main" && (
         <>
           <QuestList
             quests={quests}
             slots={slots}
-            players={PLAYERS}
+            players={players}
             currentPlayer={player}
             onCompleteSolo={completeSolo}
             onCompleteGroup={completeGroup}
@@ -187,12 +190,15 @@ export default function Home() {
         </>
       )}
 
+      {/* ===== OSIĄGNIĘCIA ===== */}
       {tab === "achievements" && (
         <AchievementsView playerId={player.id} />
       )}
 
+      {/* ===== KRONIKA ===== */}
       {tab === "chronicle" && <ChronicleView />}
 
+      {/* ===== PARAGONY ===== */}
       {tab === "receipts" && (
         <ReceiptsView playerId={player.id} />
       )}
