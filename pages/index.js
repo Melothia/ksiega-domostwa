@@ -24,12 +24,13 @@ export default function Home() {
   const [quests, setQuests] = useState([]);
   const [recent, setRecent] = useState([]);
   const [partner, setPartner] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
 
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
 
-  /* PLAYERS */
+  /* LOAD PLAYERS */
   useEffect(() => {
     supabase
       .from("players")
@@ -38,6 +39,7 @@ export default function Home() {
   }, []);
 
   async function loadPlayer(p) {
+    setLoadingProfile(true);
     setPlayer(p);
     setPartner(null);
 
@@ -65,6 +67,7 @@ export default function Home() {
       .limit(5);
 
     setRecent(rc || []);
+    setLoadingProfile(false);
   }
 
   async function executeQuest(questId, ids, xp) {
@@ -82,17 +85,14 @@ export default function Home() {
     await loadPlayer(player);
   }
 
-  /* UI */
+  /* PLAYER SELECTION */
   if (!player) {
     return (
       <main style={styles.app}>
         <h1>📖 Księga Domostwa</h1>
         {players.map((p) => (
           <button key={p.id} style={styles.playerBtn} onClick={() => loadPlayer(p)}>
-            <img
-              src={p.avatar_url || dicebear(p.nick)}
-              style={styles.avatar}
-            />
+            <img src={p.avatar_url || dicebear(p.nick)} style={styles.avatar} />
             {p.nick}
           </button>
         ))}
@@ -100,6 +100,16 @@ export default function Home() {
     );
   }
 
+  /* LOADING GUARD — 🔑 FIX */
+  if (loadingProfile || !progress) {
+    return (
+      <main style={styles.app}>
+        <p>⏳ Ładowanie profilu bohatera…</p>
+      </main>
+    );
+  }
+
+  /* MAIN UI */
   return (
     <main style={styles.app}>
       {/* PLAYER PANEL */}
@@ -118,10 +128,7 @@ export default function Home() {
       <section style={{ ...styles.card, background: "#1b1814" }}>
         <strong>📜 Kronika Gildii</strong>
         {recent.map((r, i) => (
-          <div
-            key={i}
-            style={{ opacity: 1 - i * 0.15, marginTop: 6 }}
-          >
+          <div key={i} style={{ opacity: 1 - i * 0.15, marginTop: 6 }}>
             <img
               src={r.players.avatar_url || dicebear(r.players.nick)}
               style={styles.avatarSmall}
@@ -173,7 +180,6 @@ export default function Home() {
               )}
             </div>
 
-            {/* SOLO */}
             {q.max_slots === 1 && (
               <button
                 style={styles.btn}
@@ -183,7 +189,6 @@ export default function Home() {
               </button>
             )}
 
-            {/* GRUPOWE */}
             {q.max_slots > 1 && (
               <>
                 <button
