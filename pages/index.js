@@ -7,115 +7,157 @@ const supabase = createClient(
 );
 
 export default function Home() {
-  const [player, setPlayer] = useState(null);
-  const [quests, setQuests] = useState([]);
+  const [players, setPlayers] = useState([]);
+  const [playerId, setPlayerId] = useState(null);
+  const [playerNick, setPlayerNick] = useState(null);
+
   const [progress, setProgress] = useState(null);
+  const [quests, setQuests] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const monthKey = new Date().toISOString().slice(0, 7); // YYYY-MM
+  const year = new Date().getFullYear();
+  const month = new Date().getMonth() + 1;
 
-  // ===== LOAD PLAYER =====
+  /* =======================
+     LOAD PLAYERS
+  ======================= */
   useEffect(() => {
-    const saved = localStorage.getItem("player");
-    if (saved) setPlayer(saved);
+    const loadPlayers = async () => {
+      const { data } = await supabase
+        .from("players")
+        .select("id, nick");
+
+      setPlayers(data || []);
+    };
+
+    loadPlayers();
   }, []);
 
-  // ===== LOAD OR CREATE PROGRESS =====
+  /* =======================
+     LOAD PROGRESS
+  ======================= */
   useEffect(() => {
-    if (!player) return;
+    if (!playerId) return;
 
     const loadProgress = async () => {
       setLoading(true);
 
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("monthly_progress")
         .select("*")
-        .eq("player_id", player)
-        .eq("month", monthKey);
+        .eq("player_id", playerId)
+        .eq("year", year)
+        .eq("month", month)
+        .single();
 
-      if (error) {
-        console.error(error);
-        setLoading(false);
-        return;
-      }
-
-      if (data.length === 0) {
-        const { data: created, error: insertError } = await supabase
+      if (!data) {
+        const { data: created } = await supabase
           .from("monthly_progress")
           .insert({
-            player_id: player,
-            month: monthKey,
-            level: 1,
+            player_id: playerId,
+            year,
+            month,
             xp: 0,
+            level: 1,
           })
           .select()
           .single();
 
-        if (insertError) {
-          console.error(insertError);
-        } else {
-          setProgress(created);
-        }
+        setProgress(created);
       } else {
-        setProgress(data[0]);
+        setProgress(data);
       }
 
       setLoading(false);
     };
 
     loadProgress();
-  }, [player]);
+  }, [playerId]);
 
-  // ===== LOAD QUESTS =====
+  /* =======================
+     LOAD QUESTS (NOT COMPLETED)
+  ======================= */
   useEffect(() => {
+    if (!playerId) return;
+
     const loadQuests = async () => {
       const { data } = await supabase
         .from("quests")
         .select("*")
-        .order("frequency_days");
+        .order("name");
 
-      setQuests(data || []);
+      // odfiltruj wykonane questy
+      const { data: completed } = await supabase
+        .from("quest_completions")
+        .select("quest_id")
+        .eq("player_id", playerId);
+
+      const completedIds = completed?.map((c) => c.quest_id) || [];
+
+      const available = (data || []).filter(
+        (q) => !completedIds.includes(q.id)
+      );
+
+      setQuests(available);
     };
 
     loadQuests();
-  }, []);
+  }, [playerId]);
 
-  // ===== COMPLETE QUEST =====
-  const completeQuest = async (quest) => {
-    if (!player || !progress) return;
+  /* =======================
+     COMPLETE QUEST
+  ======================= */
+  const completeQuest = async (questId) => {
+    setLoading(true);
 
-    await supabase.rpc("complete_quest", {
-      p_player_id: player,
-      p_quest_id: quest.id,
+    const { data, error } = await supabase.rpc("complete_quest", {
+      p_player_id: playerId,
+      p_quest_id: questId,
     });
 
-    // reload progress
-    const { data } = await supabase
-      .from("monthly_progress")
-      .select("*")
-      .eq("player_id", player)
-      .eq("month", monthKey);
-
-    if (data && data.length > 0) {
-      setProgress(data[0]);
+    if (error) {
+      alert(error.message);
+      setLoading(false);
+      return;
     }
+
+    // data[0] = { new_xp, new_level }
+    const result = data[0];
+
+    setProgress((prev) => ({
+      ...prev,
+      xp: result.new_xp,
+      level: result.new_level,
+    }));
+
+    setQuests((prev) => prev.filter((q) => q.id !== questId));
+    setLoading(false);
   };
 
-  // ===== UI =====
-  if (!player) {
+  /* =======================
+     UI
+  ======================= */
+
+  if (!playerId) {
     return (
       <main style={{ padding: 20 }}>
         <h1>Księga Domostwa</h1>
-        {["Melothy", "Pshemcky", "Reu", "Benditt"].map((p) => (
+        <p>Wybierz gracza:</p>
+
+        {players.map((p) => (
           <button
-            key={p}
+            key={p.id}
             onClick={() => {
-              localStorage.setItem("player", p);
-              setPlayer(p);
+              setPlayerId(p.id);
+              setPlayerNick(p.nick);
             }}
-            style={{ display: "block", margin: 10 }}
+            style={{
+              display: "block",
+              marginBottom: 10,
+              padding: 10,
+            }}
           >
-            {p}
+            {p.nick}
           </button>
         ))}
       </main>
@@ -126,28 +168,43 @@ export default function Home() {
     return <p style={{ padding: 20 }}>Ładowanie…</p>;
   }
 
+  const xpNeeded = progress.level * 100;
+
   return (
     <main style={{ padding: 20 }}>
       <h1>Księga Domostwa</h1>
-      <h2>{player}</h2>
+
+      <h2>{playerNick}</h2>
       <p>
-        Poziom: {progress.level} • XP: {progress.xp}/100
+        Poziom: {progress.level} <br />
+        XP: {progress.xp}/{xpNeeded}
       </p>
 
-      <h3>Questy</h3>
+      <h3>Questy do wykonania</h3>
 
-      {quests.length === 0 && <p>Brak questów w bazie.</p>}
+      {quests.length === 0 && <p>Brak questów 🎉</p>}
 
       {quests.map((q) => (
         <div
           key={q.id}
-          style={{ border: "1px solid #444", padding: 10, marginBottom: 10 }}
+          style={{
+            border: "1px solid #555",
+            padding: 10,
+            marginBottom: 10,
+          }}
         >
           <strong>{q.name}</strong>
           <div>
             {q.time_minutes} min • {q.base_xp} XP
           </div>
-          <button onClick={() => completeQuest(q)}>Wykonane</button>
+
+          <button
+            onClick={() => completeQuest(q.id)}
+            disabled={loading}
+            style={{ marginTop: 5 }}
+          >
+            Wykonane
+          </button>
         </div>
       ))}
     </main>
