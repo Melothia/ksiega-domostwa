@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -15,8 +15,12 @@ export default function Home() {
   const [progress, setProgress] = useState(null);
   const [achievements, setAchievements] = useState([]);
   const [owned, setOwned] = useState([]);
-  const [tab, setTab] = useState("main"); // main | achievements
+  const [ownedFull, setOwnedFull] = useState([]);
+  const [tab, setTab] = useState("main");
   const [loading, setLoading] = useState(false);
+
+  const [popup, setPopup] = useState(null);
+  const shownRef = useRef(new Set());
 
   const now = new Date();
   const year = now.getFullYear();
@@ -58,10 +62,22 @@ export default function Home() {
 
     const { data: pa } = await supabase
       .from("player_achievements")
-      .select("achievement_id")
+      .select("achievement_id, unlocked_at, achievements(title)")
       .eq("player_id", p.id);
 
-    setOwned((pa || []).map((x) => x.achievement_id));
+    const ids = (pa || []).map((x) => x.achievement_id);
+    setOwned(ids);
+    setOwnedFull(pa || []);
+
+    // 🎉 POPUP: nowy achievement
+    (pa || []).forEach((a) => {
+      if (!shownRef.current.has(a.achievement_id)) {
+        shownRef.current.add(a.achievement_id);
+        setPopup(a.achievements.title);
+        setTimeout(() => setPopup(null), 4000);
+      }
+    });
+
     setLoading(false);
   }
 
@@ -143,18 +159,17 @@ export default function Home() {
         </button>
       </div>
 
-      {/* MAIN VIEW */}
+      {/* MAIN */}
       {tab === "main" && (
         <section style={styles.card}>
-          <em>Tu wraca poprzedni widok: questy, kronika, gameplay.</em>
+          <em>Tu wracają questy, kronika i gameplay.</em>
         </section>
       )}
 
-      {/* ACHIEVEMENTS VIEW */}
+      {/* ACHIEVEMENTS */}
       {tab === "achievements" && (
         <section style={styles.card}>
           <h3>🏆 Osiągnięcia</h3>
-
           {achievements.map((a) => {
             const unlocked = owned.includes(a.id);
             return (
@@ -181,6 +196,14 @@ export default function Home() {
           })}
         </section>
       )}
+
+      {/* 🎉 POPUP */}
+      {popup && (
+        <div style={styles.popup}>
+          🏆 Nowe osiągnięcie!
+          <div style={{ fontWeight: "bold", marginTop: 4 }}>{popup}</div>
+        </div>
+      )}
     </main>
   );
 }
@@ -199,17 +222,8 @@ const styles = {
     borderRadius: 10,
     marginBottom: 16,
   },
-  tabs: {
-    display: "flex",
-    gap: 8,
-    marginBottom: 12,
-  },
-  tabBtn: {
-    flex: 1,
-    padding: 10,
-    border: "none",
-    color: "#fff",
-  },
+  tabs: { display: "flex", gap: 8, marginBottom: 12 },
+  tabBtn: { flex: 1, padding: 10, border: "none", color: "#fff" },
   playerBtn: {
     display: "flex",
     alignItems: "center",
@@ -222,8 +236,18 @@ const styles = {
   },
   avatar: { width: 36, height: 36, borderRadius: "50%" },
   avatarLarge: { width: 64, height: 64, borderRadius: "50%" },
-  line: {
-    padding: 10,
-    borderBottom: "1px solid #3a342a",
+  line: { padding: 10, borderBottom: "1px solid #3a342a" },
+  popup: {
+    position: "fixed",
+    bottom: 20,
+    left: "50%",
+    transform: "translateX(-50%)",
+    background: "#3a2f1d",
+    padding: "12px 20px",
+    borderRadius: 12,
+    boxShadow: "0 0 12px rgba(0,0,0,0.6)",
+    color: "#f4f1ea",
+    zIndex: 999,
+    textAlign: "center",
   },
 };
