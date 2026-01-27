@@ -25,9 +25,9 @@ const QUESTS = [
    XP & LEVEL LOGIKA
 ===================== */
 
-// prosty, rosnący próg (łatwy do balansowania)
 function xpForNextLevel(level) {
-  return 100 + (level - 1) * 50;
+  const safeLevel = Number(level) || 1;
+  return 100 + (safeLevel - 1) * 50;
 }
 
 /* =====================
@@ -39,7 +39,19 @@ export default function Home() {
 
   useEffect(() => {
     const saved = localStorage.getItem("ksiega_player");
-    if (saved) setPlayer(JSON.parse(saved));
+    if (saved) {
+      const parsed = JSON.parse(saved);
+
+      // 🔒 ZABEZPIECZENIE DANYCH
+      const safePlayer = {
+        ...parsed,
+        level: Number(parsed.level) || 1,
+        xp: Number(parsed.xp) || 0
+      };
+
+      localStorage.setItem("ksiega_player", JSON.stringify(safePlayer));
+      setPlayer(safePlayer);
+    }
   }, []);
 
   function selectPlayer(p) {
