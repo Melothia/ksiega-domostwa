@@ -21,6 +21,7 @@ export default function Home() {
   const [player, setPlayer] = useState(null);
   const [progress, setProgress] = useState(null);
   const [quests, setQuests] = useState([]);
+  const [slots, setSlots] = useState([]);
   const [recent, setRecent] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -39,8 +40,6 @@ export default function Home() {
   useEffect(() => {
     if (!player) return;
 
-    setLoading(true);
-
     supabase
       .from("monthly_progress")
       .select("*")
@@ -48,42 +47,33 @@ export default function Home() {
       .eq("year", year)
       .eq("month", month)
       .single()
-      .then(({ data }) => {
-        setProgress(data);
-        setLoading(false);
-      });
+      .then(({ data }) => setProgress(data));
   }, [player]);
 
   /* ===== QUESTS ===== */
-  useEffect(() => {
-    if (!player) return;
+  const loadQuests = async () => {
+    const { data } = await supabase
+      .from("quests_with_status")
+      .select("*");
 
-    const loadQuests = async () => {
-      const { data: all } = await supabase
-        .from("quests_with_status")
-        .select("*");
+    setQuests(data || []);
+  };
 
-      const { data: completed } = await supabase
-        .from("quest_completions")
-        .select("quest_id")
-        .gte("completed_at", new Date(year, month - 1, 1).toISOString())
-        .lt("completed_at", new Date(year, month, 1).toISOString());
+  /* ===== SLOTS ===== */
+  const loadSlots = async () => {
+    const { data } = await supabase
+      .from("quest_slots")
+      .select(`
+        quest_id,
+        players(id, nick, avatar_url)
+      `);
 
-      const completedIds = completed?.map(c => c.quest_id) || [];
-
-      setQuests(
-        (all || [])
-          .filter(q => !completedIds.includes(q.id))
-          .sort((a, b) => b.is_emergency - a.is_emergency)
-      );
-    };
-
-    loadQuests();
-  }, [player]);
+    setSlots(data || []);
+  };
 
   /* ===== RECENT ===== */
-  useEffect(() => {
-    supabase
+  const loadRecent = async () => {
+    const { data } = await supabase
       .from("quest_completions")
       .select(`
         completed_at,
@@ -91,17 +81,43 @@ export default function Home() {
         players(nick, avatar_url)
       `)
       .order("completed_at", { ascending: false })
-      .limit(5)
-      .then(({ data }) => setRecent(data || []));
-  }, []);
+      .limit(5);
 
-  const completeQuest = async (questId) => {
-    setLoading(true);
-    await supabase.rpc("complete_quest", {
+    setRecent(data || []);
+  };
+
+  useEffect(() => {
+    if (!player) return;
+    loadQuests();
+    loadSlots();
+    loadRecent();
+  }, [player]);
+
+  /* ===== SLOT ACTIONS ===== */
+  const joinSlot = async (questId) => {
+    const { error } = await supabase.rpc("join_quest_slot", {
       p_player_id: player.id,
       p_quest_id: questId,
     });
+
+    if (error) alert(error.message);
+    loadSlots();
+  };
+
+  const completeQuest = async (questId) => {
+    setLoading(true);
+
+    const { error } = await supabase.rpc("complete_quest", {
+      p_player_id: player.id,
+      p_quest_id: questId,
+    });
+
+    if (error) alert(error.message);
+
     setLoading(false);
+    loadQuests();
+    loadSlots();
+    loadRecent();
   };
 
   /* ===== UI ===== */
@@ -111,35 +127,20 @@ export default function Home() {
       <main className="container">
         <h1>📖 Księga Domostwa</h1>
 
-        <div className="player-list">
-          {players.map(p => (
-            <button
-              key={p.id}
-              className="player-btn"
-              onClick={() => setPlayer(p)}
-            >
-              <img
-                src={p.avatar_url || "https://api.dicebear.com/7.x/adventurer/svg?seed=default"}
-                alt=""
-                className="avatar"
-              />
-              {p.nick}
-            </button>
-          ))}
-        </div>
+        {players.map(p => (
+          <button key={p.id} className="player-btn" onClick={() => setPlayer(p)}>
+            <img src={p.avatar_url} className="avatar" />
+            {p.nick}
+          </button>
+        ))}
 
         <style jsx>{styles}</style>
       </main>
     );
   }
 
-  if (loading || !progress) {
-    return (
-      <main className="container">
-        <p>⏳ Przeglądanie kronik…</p>
-        <style jsx>{styles}</style>
-      </main>
-    );
+  if (!progress) {
+    return <p className="container">⏳ Ładowanie…</p>;
   }
 
   return (
@@ -147,55 +148,68 @@ export default function Home() {
       <h1>📖 Księga Domostwa</h1>
 
       <section className="card player-card">
-        <img
-          src={player.avatar_url}
-          alt=""
-          className="avatar large"
-        />
+        <img src={player.avatar_url} className="avatar large" />
         <div>
-          <h2>{player.nick}</h2>
-          <p>
-            Poziom {progress.level}<br />
-            XP {progress.xp}/{progress.level * 100}
-          </p>
+          <strong>{player.nick}</strong><br />
+          Poziom {progress.level}<br />
+          XP {progress.xp}/{progress.level * 100}
         </div>
       </section>
 
       <section className="card chronicle">
-        <h3>📜 Kroniki Gildii</h3>
-
-        <div className="chronicle-list">
-          {recent.map((r, i) => (
-            <div key={i} className="log">
-              <img
-                src={r.players.avatar_url}
-                className="avatar small"
-              />
-              <div>
-                <strong>{r.players.nick}</strong>{" "}
-                wykonał(a) <em>{r.quests.name}</em>
-                <span className="time">{timeAgo(r.completed_at)}</span>
-              </div>
+        <h3>📜 Kronika</h3>
+        {recent.map((r, i) => (
+          <div key={i} className="log">
+            <img src={r.players.avatar_url} className="avatar small" />
+            <div>
+              <strong>{r.players.nick}</strong> – {r.quests.name}
+              <div className="time">{timeAgo(r.completed_at)}</div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </section>
 
       <section className="card">
         <h3>🗺️ Questy</h3>
 
-        {quests.map(q => (
-          <div key={q.id} className={`quest ${q.is_emergency ? "emergency" : ""}`}>
-            <strong>{q.name}</strong>
-            {q.is_emergency && <span className="alert">⚠ EMERGENCY</span>}
-            <div className="muted">
-              {q.time_minutes} min • {q.base_xp} XP
+        {quests.map(q => {
+          const questSlots = slots.filter(s => s.quest_id === q.id);
+          const isJoined = questSlots.some(s => s.players.id === player.id);
+
+          return (
+            <div key={q.id} className={`quest ${q.is_emergency ? "emergency" : ""}`}>
+              <strong>{q.name}</strong>
+              {q.is_emergency && <span className="alert">⚠ EMERGENCY</span>}
+
+              <div className="muted">
+                {questSlots.length}/{q.max_slots} sloty
+              </div>
+
+              <div className="slot-list">
+                {questSlots.map((s, i) => (
+                  <img
+                    key={i}
+                    src={s.players.avatar_url}
+                    title={s.players.nick}
+                    className="avatar small"
+                  />
+                ))}
+              </div>
+
+              {!isJoined && questSlots.length < q.max_slots && (
+                <button className="btn small" onClick={() => joinSlot(q.id)}>
+                  Dołącz
+                </button>
+              )}
+
+              {isJoined && (
+                <button className="btn small" onClick={() => completeQuest(q.id)}>
+                  Wykonane
+                </button>
+              )}
             </div>
-            <button className="btn small" onClick={() => completeQuest(q.id)}>
-              Wykonane
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </section>
 
       <style jsx>{styles}</style>
@@ -215,29 +229,22 @@ const styles = `
   font-family: serif;
 }
 
-.player-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
 .player-btn {
   display: flex;
-  align-items: center;
   gap: 10px;
+  align-items: center;
   padding: 10px;
+  margin-bottom: 8px;
   background: #6b4f1d;
   border: none;
   border-radius: 6px;
   color: #fff;
-  cursor: pointer;
 }
 
 .avatar {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #333;
 }
 
 .avatar.large {
@@ -264,23 +271,10 @@ const styles = `
   align-items: center;
 }
 
-.chronicle-list {
-  max-height: 160px;
-  overflow: hidden;
-  mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
-}
-
-.log {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 14px;
-}
-
-.time {
-  display: block;
-  font-size: 12px;
-  color: #b9b2a3;
+.quest {
+  border-top: 1px solid #3b3428;
+  padding-top: 10px;
+  margin-top: 10px;
 }
 
 .quest.emergency {
@@ -293,6 +287,23 @@ const styles = `
   margin-left: 6px;
 }
 
+.slot-list {
+  display: flex;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.log {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.time {
+  font-size: 12px;
+  color: #b9b2a3;
+}
+
 .muted {
   color: #b9b2a3;
   font-size: 14px;
@@ -302,13 +313,9 @@ const styles = `
   width: 100%;
   background: #6b4f1d;
   color: #fff;
-  padding: 10px;
+  padding: 6px;
   border-radius: 6px;
   border: none;
-}
-
-.btn.small {
   margin-top: 6px;
-  padding: 6px;
 }
 `;
