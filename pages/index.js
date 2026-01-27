@@ -6,9 +6,6 @@ const supabase = createClient(
   "sb_publishable_dm5fyZedKgGD3OccGT2yDg_38bv-Efd"
 );
 
-const avatar = (seed) =>
-  `https://api.dicebear.com/7.x/adventurer/svg?seed=${seed}`;
-
 const rewards = {
   Reu: "🎬 Wyjście do Kina",
   Melothy: "🎲 Wieczór Planszówkowy",
@@ -22,23 +19,41 @@ export default function Home() {
   const [players, setPlayers] = useState([]);
   const [player, setPlayer] = useState(null);
   const [progress, setProgress] = useState(null);
+  const [tab, setTab] = useState("main");
   const [ranking, setRanking] = useState([]);
   const [quests, setQuests] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [chronicle, setChronicle] = useState([]);
+  const [receipts, setReceipts] = useState([]);
 
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
 
+  const prevMonthDate = new Date(year, month - 2, 1);
+  const prevMonthLabel = prevMonthDate.toLocaleString("pl-PL", {
+    month: "long",
+    year: "numeric",
+  });
+
   useEffect(() => {
     supabase.from("players").select("*").then(({ data }) => {
       setPlayers(data || []);
     });
+
+    const saved = localStorage.getItem("player_id");
+    if (saved) {
+      supabase
+        .from("players")
+        .select("*")
+        .eq("id", saved)
+        .single()
+        .then(({ data }) => data && loadPlayer(data));
+    }
   }, []);
 
   async function loadPlayer(p) {
-    setLoading(true);
     setPlayer(p);
+    localStorage.setItem("player_id", p.id);
 
     await supabase.rpc("ensure_monthly_progress", {
       p_player_id: p.id,
@@ -58,7 +73,7 @@ export default function Home() {
 
     const { data: rank } = await supabase
       .from("monthly_progress")
-      .select("xp, players(nick)")
+      .select("xp, players(nick, avatar_url)")
       .eq("year", year)
       .eq("month", month)
       .order("xp", { ascending: false });
@@ -72,107 +87,144 @@ export default function Home() {
       .order("state", { ascending: false });
 
     setQuests(q || []);
-    setLoading(false);
+
+    const { data: c } = await supabase
+      .from("chronicle")
+      .select("*, players(nick, avatar_url)")
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    setChronicle(c || []);
+
+    const { data: r } = await supabase
+      .from("receipts")
+      .select("*, players(nick)")
+      .order("created_at", { ascending: false });
+
+    setReceipts(r || []);
   }
 
-  async function completeQuest(questId) {
+  async function completeQuest(id) {
     await supabase.rpc("complete_quest", {
       p_player_id: player.id,
-      p_quest_id: questId,
+      p_quest_id: id,
     });
     loadPlayer(player);
   }
 
   if (!player) {
     return (
-      <main style={styles.app}>
-        <h1>📖 Księga Domostwa</h1>
-        {players.map((p) => (
-          <button
-            key={p.id}
-            style={styles.playerBtn}
-            onClick={() => loadPlayer(p)}
-          >
-            <img src={p.avatar_url || avatar(p.nick)} style={styles.avatar} />
-            {p.nick}
-          </button>
-        ))}
+      <main style={styles.login}>
+        <h1>Księga Domostwa</h1>
+        <div style={styles.loginGrid}>
+          {players.map((p) => (
+            <button key={p.id} style={styles.loginCard} onClick={() => loadPlayer(p)}>
+              <img src={p.avatar_url} style={styles.loginAvatar} />
+              <span>{p.nick}</span>
+            </button>
+          ))}
+        </div>
       </main>
     );
   }
 
-  if (loading || !progress) {
-    return <main style={styles.app}>⏳ Ładowanie…</main>;
-  }
-
   return (
     <main style={styles.app}>
-      {/* PROFIL */}
+      {/* PANEL GRACZA */}
       <section style={styles.card}>
-        <img src={player.avatar_url || avatar(player.nick)} style={styles.avatarLarge} />
+        <img src={player.avatar_url} style={styles.avatar} />
         <div>
           <strong>{player.nick}</strong>
+          <div>{player.active_title}</div>
           <div>
             Poziom {progress.level} · XP {progress.xp}/{progress.level * 100}
           </div>
         </div>
       </section>
 
-      {/* RANKING */}
-      <section style={styles.rankBar}>
+      {/* PASEK MIESIĘCZNY */}
+      <section style={styles.monthBar}>
         {ranking.map((r, i) => (
-          <div key={i} style={styles.rankItem}>
-            <span>{medals[i]}</span>
-            <strong>{r.players.nick}</strong>
-            {i === 0 && rewards[r.players.nick] && (
-              <span style={styles.reward}>
-                NAGRODA: {rewards[r.players.nick]}
-              </span>
-            )}
-          </div>
+          <span key={i}>
+            {medals[i]} {r.players.nick}
+            {i === 0 && ` — NAGRODA: ${rewards[r.players.nick]}`}
+          </span>
         ))}
+        <span style={{ opacity: 0.7 }}>
+          Gracz miesiąca ({prevMonthLabel}):{" "}
+          {ranking[0]?.players.nick || "—"}
+        </span>
       </section>
 
-      {/* QUESTY */}
-      <section style={styles.card}>
-        <h3>📜 Questy</h3>
-
-        {quests.map((q, i) => (
-          <div
-            key={q.id}
+      {/* ZAKŁADKI */}
+      <nav style={styles.tabs}>
+        {["main", "achievements", "chronicle", "receipts"].map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
             style={{
-              ...styles.questLine,
-              opacity:
-                q.state === "upcoming"
-                  ? 0.5
-                  : q.state === "emergency"
-                  ? 1
-                  : 0.9,
+              ...styles.tabBtn,
+              background: tab === t ? "#4b3a73" : "#2c2440",
             }}
           >
-            <div>
-              <strong>
-                {q.state === "emergency" && "⚠ "}
-                {q.state === "upcoming" && "⏳ "}
-                {q.name}
-              </strong>
-              <div style={{ fontSize: 12 }}>
-                ⏱ {q.time_minutes} min · ⭐ {q.base_xp} XP
-              </div>
-            </div>
-
-            {q.state === "active" || q.state === "emergency" ? (
-              <button style={styles.btn} onClick={() => completeQuest(q.id)}>
-                Wykonane
-              </button>
-            ) : (
-              <span style={{ fontSize: 12 }}>
-                Dostępne za {q.days_until_active} dni
-              </span>
-            )}
-          </div>
+            {t === "main" && "Główna"}
+            {t === "achievements" && "Osiągnięcia"}
+            {t === "chronicle" && "Kronika"}
+            {t === "receipts" && "Skrzynia"}
+          </button>
         ))}
-      </section>
+      </nav>
+
+      {/* GŁÓWNA */}
+      {tab === "main" && (
+        <>
+          <section style={styles.card}>
+            <h3>Questy</h3>
+            {quests.map((q) => (
+              <div key={q.id} style={{ opacity: q.state === "upcoming" ? 0.5 : 1 }}>
+                <strong>
+                  {q.state === "emergency" && "⚠ "}
+                  {q.state === "upcoming" && "⏳ "}
+                  {q.name}
+                </strong>
+                {q.state === "active" || q.state === "emergency" ? (
+                  <button style={styles.smallBtn} onClick={() => completeQuest(q.id)}>
+                    Wykonane
+                  </button>
+                ) : (
+                  <span>Dostępne za {q.days_until_active} dni</span>
+                )}
+              </div>
+            ))}
+          </section>
+        </>
+      )}
+
+      {/* KRONIKA */}
+      {tab === "chronicle" && (
+        <section style={styles.cardDark}>
+          {chronicle.map((c) => (
+            <div key={c.id} style={styles.chronoLine}>
+              <img src={c.players.avatar_url} style={styles.chronoAvatar} />
+              <span>
+                <strong>{c.players.nick}</strong> {c.message}
+              </span>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {/* SKRZYNIA */}
+      {tab === "receipts" && (
+        <section style={styles.card}>
+          <strong>{prevMonthLabel}</strong>
+          {receipts.map((r) => (
+            <div key={r.id}>
+              {r.players.nick}: {r.amount} zł
+            </div>
+          ))}
+        </section>
+      )}
     </main>
   );
 }
@@ -182,56 +234,90 @@ const styles = {
     minHeight: "100vh",
     background: "#181421",
     color: "#f1edf9",
-    padding: 20,
+    padding: 16,
     fontFamily: "serif",
+  },
+  login: {
+    minHeight: "100vh",
+    background: "#181421",
+    color: "#f1edf9",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    paddingTop: 40,
+  },
+  loginGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, 1fr)",
+    gap: 20,
+    marginTop: 40,
+  },
+  loginCard: {
+    background: "none",
+    border: "none",
+    color: "#fff",
+    textAlign: "center",
+  },
+  loginAvatar: {
+    width: 120,
+    height: 120,
+    borderRadius: "50%",
+    border: "3px solid #c9a86a",
   },
   card: {
     background: "#241c33",
-    padding: 14,
     borderRadius: 14,
-    marginBottom: 16,
+    padding: 12,
+    marginBottom: 12,
   },
-  questLine: {
+  cardDark: {
+    background: "#1f192d",
+    borderRadius: 14,
+    padding: 12,
+  },
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: "50%",
+    border: "3px solid #c9a86a",
+  },
+  monthBar: {
+    fontSize: 13,
+    opacity: 0.9,
+    marginBottom: 12,
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
+    flexDirection: "column",
+    gap: 4,
   },
-  btn: {
+  tabs: {
+    display: "flex",
+    gap: 6,
+    marginBottom: 12,
+  },
+  tabBtn: {
+    flex: 1,
+    border: "none",
+    color: "#fff",
+    padding: 8,
+    borderRadius: 8,
+  },
+  smallBtn: {
+    marginLeft: 8,
     background: "#4b3a73",
     border: "none",
     color: "#fff",
-    padding: "6px 10px",
-    borderRadius: 8,
+    padding: "4px 8px",
+    borderRadius: 6,
   },
-  rankBar: {
+  chronoLine: {
     display: "flex",
-    gap: 12,
-    background: "#201a2e",
-    padding: "10px 12px",
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  rankItem: {
-    display: "flex",
-    gap: 6,
+    gap: 8,
     alignItems: "center",
-    fontSize: 14,
+    marginBottom: 6,
   },
-  reward: {
-    marginLeft: 6,
-    color: "#c9a86a",
+  chronoAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: "50%",
   },
-  playerBtn: {
-    display: "flex",
-    gap: 10,
-    padding: 12,
-    background: "#31284a",
-    border: "none",
-    color: "#fff",
-    marginBottom: 8,
-    borderRadius: 10,
-  },
-  avatar: { width: 36, height: 36, borderRadius: "50%" },
-  avatarLarge: { width: 64, height: 64, borderRadius: "50%" },
 };
