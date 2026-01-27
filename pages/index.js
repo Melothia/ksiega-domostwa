@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
 
+/* =====================
+   DANE STAŁE
+===================== */
+
 const PLAYERS = [
   { id: "melothy", name: "Melothy", avatar: "🏹" },
   { id: "pshemcky", name: "Pshemcky", avatar: "🌿" },
@@ -7,15 +11,26 @@ const PLAYERS = [
   { id: "benditt", name: "Benditt", avatar: "✨" }
 ];
 
+const QUESTS = [
+  { id: "em1", name: "🚨 Zalane Królestwo (łazienka)", time: 45, xp: 130, slots: 1, emergency: true },
+  { id: "em2", name: "🚨 Najazd Kurzu", time: 20, xp: 80, slots: 1, emergency: true },
+
+  { id: "q1", name: "Odkurzanie", time: 30, xp: 100, slots: 1 },
+  { id: "q2", name: "Wynoszenie śmieci", time: 10, xp: 60, slots: 1 },
+  { id: "q3", name: "Szybkie ogólne ogarnięcie przestrzeni wspólnej", time: 10, xp: 60, slots: 1 },
+  { id: "q4", name: "Czesanie kota", time: 10, xp: 60, slots: 1 }
+];
+
+/* =====================
+   APLIKACJA
+===================== */
+
 export default function Home() {
   const [player, setPlayer] = useState(null);
 
-  // ⬇️ wczytanie gracza po odświeżeniu
   useEffect(() => {
     const saved = localStorage.getItem("ksiega_player");
-    if (saved) {
-      setPlayer(JSON.parse(saved));
-    }
+    if (saved) setPlayer(JSON.parse(saved));
   }, []);
 
   function selectPlayer(p) {
@@ -28,7 +43,10 @@ export default function Home() {
     setPlayer(null);
   }
 
-  // 🧙 PANEL GILDII
+  /* =====================
+     PANEL GILDII
+  ===================== */
+
   if (player) {
     return (
       <main style={styles.main}>
@@ -37,9 +55,19 @@ export default function Home() {
         <div style={styles.panel}>
           <div style={styles.avatarBig}>{player.avatar}</div>
           <h2>{player.name}</h2>
-          <p style={{ opacity: 0.7 }}>
-            Poziom: 1 • XP: 0
-          </p>
+          <p style={{ opacity: 0.7 }}>Poziom: 1 • XP: 0</p>
+        </div>
+
+        <div style={styles.questWrapper}>
+          <h3>🚨 Emergency</h3>
+          {QUESTS.filter(q => q.emergency).map(q => (
+            <QuestCard key={q.id} quest={q} />
+          ))}
+
+          <h3 style={{ marginTop: "1.5rem" }}>🗓️ Do wykonania</h3>
+          {QUESTS.filter(q => !q.emergency).map(q => (
+            <QuestCard key={q.id} quest={q} />
+          ))}
         </div>
 
         <button onClick={logout} style={styles.logout}>
@@ -49,7 +77,10 @@ export default function Home() {
     );
   }
 
-  // 🎭 WYBÓR PROFILU
+  /* =====================
+     WYBÓR GRACZA
+  ===================== */
+
   return (
     <main style={styles.main}>
       <h1 style={styles.title}>📜 Księga Domostwa</h1>
@@ -71,6 +102,25 @@ export default function Home() {
   );
 }
 
+/* =====================
+   KARTA QUESTA
+===================== */
+
+function QuestCard({ quest }) {
+  return (
+    <div style={styles.questCard}>
+      <strong>{quest.name}</strong>
+      <div style={styles.questMeta}>
+        ⏱ {quest.time} min • ⭐ {quest.xp} XP • 👥 {quest.slots}
+      </div>
+    </div>
+  );
+}
+
+/* =====================
+   STYLE
+===================== */
+
 const styles = {
   main: {
     minHeight: "100vh",
@@ -81,23 +131,23 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     fontFamily: "system-ui, sans-serif",
-    textAlign: "center",
-    padding: "2rem"
+    padding: "2rem",
+    textAlign: "center"
   },
   title: {
-    fontSize: "2.5rem",
+    fontSize: "2.4rem",
     marginBottom: "0.5rem"
   },
   subtitle: {
-    marginBottom: "2rem",
-    opacity: 0.8
+    opacity: 0.8,
+    marginBottom: "2rem"
   },
   grid: {
     display: "grid",
     gridTemplateColumns: "repeat(2, 1fr)",
     gap: "1.5rem",
-    width: "100%",
-    maxWidth: "320px"
+    maxWidth: "320px",
+    width: "100%"
   },
   card: {
     background: "#1a1a1a",
@@ -105,8 +155,7 @@ const styles = {
     borderRadius: "12px",
     padding: "1.5rem 1rem",
     cursor: "pointer",
-    color: "#eaeaea",
-    fontSize: "1rem"
+    color: "#eaeaea"
   },
   avatar: {
     fontSize: "2.5rem",
@@ -117,12 +166,28 @@ const styles = {
     border: "1px solid #333",
     borderRadius: "16px",
     padding: "2rem",
-    marginTop: "1rem",
+    marginBottom: "2rem",
     minWidth: "260px"
   },
   avatarBig: {
-    fontSize: "3rem",
-    marginBottom: "0.5rem"
+    fontSize: "3rem"
+  },
+  questWrapper: {
+    width: "100%",
+    maxWidth: "420px",
+    textAlign: "left"
+  },
+  questCard: {
+    background: "#161616",
+    border: "1px solid #333",
+    borderRadius: "12px",
+    padding: "1rem",
+    marginTop: "0.5rem"
+  },
+  questMeta: {
+    fontSize: "0.85rem",
+    opacity: 0.75,
+    marginTop: "0.25rem"
   },
   logout: {
     marginTop: "2rem",
