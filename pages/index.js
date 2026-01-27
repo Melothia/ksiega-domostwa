@@ -6,46 +6,50 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-/* ===========================
-   POMOCNICZE
-=========================== */
+/* =========================
+   KONFIG
+========================= */
 
-const XP_PER_LEVEL = 100;
+const EMERGENCY_BONUS = 0.3; // +30%
 
 function xpToNext(level) {
-  return level * XP_PER_LEVEL;
+  return level * 100;
 }
 
-function safe(val, fallback = "") {
-  return val === null || val === undefined ? fallback : val;
+function safe(v, fallback = "") {
+  return v === null || v === undefined ? fallback : v;
 }
 
-/* ===========================
+/* =========================
    STRONA
-=========================== */
+========================= */
 
 export default function Home() {
   const [players, setPlayers] = useState([]);
   const [currentPlayer, setCurrentPlayer] = useState(null);
   const [progress, setProgress] = useState(null);
+
   const [quests, setQuests] = useState([]);
-  const [upcoming, setUpcoming] = useState([]);
   const [chronicle, setChronicle] = useState([]);
   const [achievements, setAchievements] = useState([]);
   const [receipts, setReceipts] = useState([]);
+
   const [tab, setTab] = useState("main");
   const [loading, setLoading] = useState(false);
 
-  /* ===========================
-     LOAD PODSTAW
-  =========================== */
+  /* =========================
+     INIT
+  ========================= */
 
   useEffect(() => {
     loadPlayers();
   }, []);
 
   async function loadPlayers() {
-    const { data } = await supabase.from("players").select("*").order("nick");
+    const { data } = await supabase
+      .from("players")
+      .select("*")
+      .order("nick");
     setPlayers(data || []);
   }
 
@@ -63,6 +67,10 @@ export default function Home() {
 
     setLoading(false);
   }
+
+  /* =========================
+     DATA LOAD
+  ========================= */
 
   async function loadProgress(playerId) {
     const now = new Date();
@@ -83,10 +91,6 @@ export default function Home() {
   async function loadQuests() {
     const { data } = await supabase.from("quests").select("*");
     setQuests(data || []);
-
-    /* QUESTY NADCHODZĄCE */
-    const upcomingList = (data || []).filter(q => q.frequency_days > 1);
-    setUpcoming(upcomingList);
   }
 
   async function loadChronicle() {
@@ -95,7 +99,6 @@ export default function Home() {
       .select("*, players(nick, avatar_url)")
       .order("created_at", { ascending: false })
       .limit(20);
-
     setChronicle(data || []);
   }
 
@@ -104,7 +107,6 @@ export default function Home() {
       .from("player_achievements")
       .select("*, achievements(title)")
       .eq("player_id", playerId);
-
     setAchievements(data || []);
   }
 
@@ -113,18 +115,17 @@ export default function Home() {
       .from("receipts")
       .select("*, players(nick)")
       .order("added_at", { ascending: false });
-
     setReceipts(data || []);
   }
 
-  /* ===========================
+  /* =========================
      QUESTY
-  =========================== */
+  ========================= */
 
   async function completeQuest(questId) {
     if (!currentPlayer) return;
-
     setLoading(true);
+
     await supabase.rpc("complete_quest", {
       p_player_id: currentPlayer.id,
       p_quest_id: questId
@@ -132,15 +133,16 @@ export default function Home() {
 
     await Promise.all([
       loadProgress(currentPlayer.id),
+      loadQuests(),
       loadChronicle()
     ]);
 
     setLoading(false);
   }
 
-  /* ===========================
-     RENDER
-  =========================== */
+  /* =========================
+     LOGIN
+  ========================= */
 
   if (!currentPlayer) {
     return (
@@ -158,9 +160,20 @@ export default function Home() {
     );
   }
 
+  /* =========================
+     DERIVED
+  ========================= */
+
   const level = safe(progress?.level, 1);
   const xp = safe(progress?.xp, 0);
   const xpNext = xpToNext(level);
+
+  const activeQuests = quests.filter(q => !q.next_available_at || new Date(q.next_available_at) <= new Date());
+  const upcomingQuests = quests.filter(q => q.next_available_at && new Date(q.next_available_at) > new Date());
+
+  /* =========================
+     UI
+  ========================= */
 
   return (
     <div style={styles.page}>
@@ -168,7 +181,7 @@ export default function Home() {
       <div style={styles.playerPanel}>
         <img src={currentPlayer.avatar_url} style={styles.avatar} />
         <div>
-          <h2>{currentPlayer.nick}</h2>
+          <strong>{currentPlayer.nick}</strong>
           <div>{safe(currentPlayer.title)}</div>
           <div>Poziom {level} • XP {xp}/{xpNext}</div>
         </div>
@@ -176,15 +189,18 @@ export default function Home() {
 
       {/* TABS */}
       <div style={styles.tabs}>
-        {["main", "achievements", "chronicle", "receipts"].map(t => (
+        {[
+          ["main", "Główna"],
+          ["achievements", "Osiągnięcia"],
+          ["chronicle", "Kronika"],
+          ["receipts", "Skrzynia"]
+        ].map(([key, label]) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            style={tab === t ? styles.tabActive : styles.tab}
+            key={key}
+            onClick={() => setTab(key)}
+            style={tab === key ? styles.tabActive : styles.tab}
           >
-            {t === "main" ? "Główna" :
-             t === "achievements" ? "Osiągnięcia" :
-             t === "chronicle" ? "Kronika" : "Skrzynia"}
+            {label}
           </button>
         ))}
       </div>
@@ -192,19 +208,33 @@ export default function Home() {
       {/* GŁÓWNA */}
       {tab === "main" && (
         <>
-          <h3>🔥 Aktywne Questy</h3>
-          {quests.map(q => (
-            <div key={q.id} style={styles.quest}>
+          <h3>🔥 Questy do wykonania</h3>
+
+          {activeQuests.map(q => {
+            const isEmergency = q.type === "emergency";
+            const bonusXP = isEmergency ? Math.round(q.base_xp * EMERGENCY_BONUS) : 0;
+            const totalXP = q.base_xp + bonusXP;
+
+            return (
+              <div key={q.id} style={isEmergency ? styles.questEmergency : styles.quest}>
+                <strong>{q.name}</strong>
+                <div>⏱ {q.time_minutes} min • ⭐ {q.base_xp} XP</div>
+                {isEmergency && (
+                  <div style={{ color: "#ff9b9b" }}>
+                    ⚠️ Emergency: +{bonusXP} XP
+                  </div>
+                )}
+                <div>➡️ Razem: {totalXP} XP</div>
+                <button onClick={() => completeQuest(q.id)}>Wykonaj</button>
+              </div>
+            );
+          })}
+
+          <h3 style={{ opacity: 0.6 }}>⏳ Questy nadchodzące</h3>
+          {upcomingQuests.map(q => (
+            <div key={q.id} style={styles.upcoming}>
               <strong>{q.name}</strong>
               <div>⏱ {q.time_minutes} min • ⭐ {q.base_xp} XP</div>
-              <button onClick={() => completeQuest(q.id)}>Wykonane</button>
-            </div>
-          ))}
-
-          <h3 style={{ opacity: 0.6 }}>⏳ Nadchodzące</h3>
-          {upcoming.map(q => (
-            <div key={q.id} style={styles.upcoming}>
-              {q.name}
             </div>
           ))}
         </>
@@ -215,7 +245,7 @@ export default function Home() {
         <>
           <h3>🏆 Osiągnięcia</h3>
           {achievements.map(a => (
-            <div key={a.id}>{a.achievements?.title}</div>
+            <div key={a.id}>• {a.achievements?.title}</div>
           ))}
         </>
       )}
@@ -245,19 +275,19 @@ export default function Home() {
         </>
       )}
 
-      {loading && <div style={styles.loading}>Ładowanie…</div>}
+      {loading && <div style={styles.loading}>⏳</div>}
     </div>
   );
 }
 
-/* ===========================
-   STYLE (mobile-first)
-=========================== */
+/* =========================
+   STYLE
+========================= */
 
 const styles = {
   page: {
-    background: "linear-gradient(#1b102a, #0f081a)",
     minHeight: "100vh",
+    background: "linear-gradient(#1b102a,#0f081a)",
     color: "#eee",
     padding: 12
   },
@@ -291,17 +321,24 @@ const styles = {
   tabActive: { flex: 1, padding: 8, background: "#5c4b8a" },
   quest: {
     background: "#241a38",
-    marginTop: 8,
     padding: 8,
-    borderRadius: 8
+    borderRadius: 8,
+    marginTop: 8
+  },
+  questEmergency: {
+    background: "#3a1c2b",
+    padding: 8,
+    borderRadius: 8,
+    marginTop: 8
   },
   upcoming: {
     opacity: 0.4,
-    padding: 6
+    padding: 8,
+    borderRadius: 8
   },
   chronicle: {
-    opacity: 0.8,
     fontSize: 14,
+    opacity: 0.85,
     marginBottom: 4
   },
   loading: {
