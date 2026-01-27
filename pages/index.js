@@ -1,122 +1,105 @@
 import { useEffect, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 /* =====================
-   DANE STAŁE
+   SUPABASE
+===================== */
+
+const supabase = createClient(
+  "https://zhywdorfllurbkwzesii.supabase.co",
+  "sb_publishable_dm5fyZedKgGD3OccGT2yDg_38bv-Efd"
+);
+
+/* =====================
+   KONFIG
 ===================== */
 
 const PLAYERS = [
-  { id: "melothy", name: "Melothy", avatar: "🏹" },
-  { id: "pshemcky", name: "Pshemcky", avatar: "🌿" },
-  { id: "reu", name: "Reu", avatar: "🗡️" },
-  { id: "benditt", name: "Benditt", avatar: "✨" }
+  { id: "melothy", nick: "Melothy", avatar: "🏹" },
+  { id: "pshemcky", nick: "Pshemcky", avatar: "🌿" },
+  { id: "reu", nick: "Reu", avatar: "🗡️" },
+  { id: "benditt", nick: "Benditt", avatar: "✨" }
 ];
 
-const BASE_QUESTS = [
-  { id: "em1", name: "🚨 Zalane Królestwo (łazienka)", time: 45, xp: 130, slots: 1, emergency: true },
-  { id: "em2", name: "🚨 Najazd Kurzu", time: 20, xp: 80, slots: 1, emergency: true },
-
-  { id: "q1", name: "Odkurzanie", time: 30, xp: 100, slots: 1 },
-  { id: "q2", name: "Wynoszenie śmieci", time: 10, xp: 60, slots: 1 },
-  { id: "q3", name: "Szybkie ogólne ogarnięcie przestrzeni wspólnej", time: 10, xp: 60, slots: 1 },
-  { id: "q4", name: "Czesanie kota", time: 10, xp: 60, slots: 1 }
-];
-
-/* =====================
-   XP & LEVEL
-===================== */
+function currentMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 function xpForNextLevel(level) {
-  const safeLevel = Number(level) || 1;
-  return 100 + (safeLevel - 1) * 50;
-}
-
-function applyXp(player, gainedXp) {
-  let level = player.level;
-  let xp = player.xp + gainedXp;
-
-  let needed = xpForNextLevel(level);
-
-  while (xp >= needed) {
-    xp -= needed;
-    level += 1;
-    needed = xpForNextLevel(level);
-  }
-
-  return { ...player, level, xp };
+  return 100 + (level - 1) * 50;
 }
 
 /* =====================
-   APLIKACJA
+   APP
 ===================== */
 
 export default function Home() {
   const [player, setPlayer] = useState(null);
-  const [quests, setQuests] = useState(BASE_QUESTS);
+  const [progress, setProgress] = useState(null);
+  const month = currentMonth();
 
   useEffect(() => {
-    const saved = localStorage.getItem("ksiega_player");
+    const saved = localStorage.getItem("ksiega_player_id");
     if (saved) {
-      const parsed = JSON.parse(saved);
-      const safePlayer = {
-        ...parsed,
-        level: Number(parsed.level) || 1,
-        xp: Number(parsed.xp) || 0
-      };
-      localStorage.setItem("ksiega_player", JSON.stringify(safePlayer));
-      setPlayer(safePlayer);
+      loadPlayer(saved);
     }
   }, []);
 
-  function selectPlayer(p) {
-    const playerData = { ...p, level: 1, xp: 0 };
-    localStorage.setItem("ksiega_player", JSON.stringify(playerData));
-    setPlayer(playerData);
-    setQuests(BASE_QUESTS);
+  async function loadPlayer(playerId) {
+    localStorage.setItem("ksiega_player_id", playerId);
+
+    const basePlayer = PLAYERS.find(p => p.id === playerId);
+    setPlayer(basePlayer);
+
+    let { data, error } = await supabase
+      .from("monthly_progress")
+      .select("*")
+      .eq("player_id", playerId)
+      .eq("month", month)
+      .single();
+
+    if (!data) {
+      const { data: created, error: insertError } = await supabase
+        .from("monthly_progress")
+        .insert({
+          player_id: playerId,
+          month: month,
+          level: 1,
+          xp: 0
+        })
+        .select()
+        .single();
+
+      if (!insertError) {
+        setProgress(created);
+      }
+    } else {
+      setProgress(data);
+    }
   }
 
   function logout() {
-    localStorage.removeItem("ksiega_player");
+    localStorage.removeItem("ksiega_player_id");
     setPlayer(null);
-  }
-
-  function completeQuest(quest) {
-    const updatedPlayer = applyXp(player, quest.xp);
-    localStorage.setItem("ksiega_player", JSON.stringify(updatedPlayer));
-    setPlayer(updatedPlayer);
-
-    // usuwamy quest z listy (tymczasowo)
-    setQuests(prev => prev.filter(q => q.id !== quest.id));
+    setProgress(null);
   }
 
   /* =====================
-     PANEL GILDII
+     PANEL GRACZA
   ===================== */
 
-  if (player) {
-    const xpNeeded = xpForNextLevel(player.level);
-
+  if (player && progress) {
     return (
       <main style={styles.main}>
         <h1 style={styles.title}>📜 Księga Domostwa</h1>
 
         <div style={styles.panel}>
-          <div style={styles.avatarBig}>{player.avatar}</div>
-          <h2>{player.name}</h2>
-          <p style={{ opacity: 0.85 }}>
-            Poziom: {player.level} • XP: {player.xp}/{xpNeeded}
+          <div style={styles.avatar}>{player.avatar}</div>
+          <h2>{player.nick}</h2>
+          <p>
+            Poziom: {progress.level} • XP: {progress.xp}/{xpForNextLevel(progress.level)}
           </p>
-        </div>
-
-        <div style={styles.questWrapper}>
-          <h3>🚨 Emergency</h3>
-          {quests.filter(q => q.emergency).map(q => (
-            <QuestCard key={q.id} quest={q} onDone={completeQuest} />
-          ))}
-
-          <h3 style={{ marginTop: "1.5rem" }}>🗓️ Do wykonania</h3>
-          {quests.filter(q => !q.emergency).map(q => (
-            <QuestCard key={q.id} quest={q} onDone={completeQuest} />
-          ))}
         </div>
 
         <button onClick={logout} style={styles.logout}>
@@ -133,42 +116,21 @@ export default function Home() {
   return (
     <main style={styles.main}>
       <h1 style={styles.title}>📜 Księga Domostwa</h1>
-      <p style={styles.subtitle}>Wybierz swojego bohatera</p>
+      <p>Wybierz bohatera</p>
 
       <div style={styles.grid}>
         {PLAYERS.map(p => (
           <button
             key={p.id}
-            onClick={() => selectPlayer(p)}
             style={styles.card}
+            onClick={() => loadPlayer(p.id)}
           >
-            <div style={styles.avatar}>{p.avatar}</div>
-            <div>{p.name}</div>
+            <div style={{ fontSize: "2.5rem" }}>{p.avatar}</div>
+            <div>{p.nick}</div>
           </button>
         ))}
       </div>
     </main>
-  );
-}
-
-/* =====================
-   QUEST CARD
-===================== */
-
-function QuestCard({ quest, onDone }) {
-  return (
-    <div style={styles.questCard}>
-      <strong>{quest.name}</strong>
-      <div style={styles.questMeta}>
-        ⏱ {quest.time} min • ⭐ {quest.xp} XP • 👥 {quest.slots}
-      </div>
-      <button
-        style={styles.doneButton}
-        onClick={() => onDone(quest)}
-      >
-        Wykonane
-      </button>
-    </div>
   );
 }
 
@@ -179,80 +141,43 @@ function QuestCard({ quest, onDone }) {
 const styles = {
   main: {
     minHeight: "100vh",
-    backgroundColor: "#0f0f0f",
-    color: "#eaeaea",
+    background: "#0f0f0f",
+    color: "#eee",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    fontFamily: "system-ui, sans-serif",
+    fontFamily: "system-ui",
     padding: "2rem",
     textAlign: "center"
   },
   title: {
     fontSize: "2.4rem",
-    marginBottom: "0.5rem"
-  },
-  subtitle: {
-    opacity: 0.8,
-    marginBottom: "2rem"
+    marginBottom: "1rem"
   },
   grid: {
     display: "grid",
     gridTemplateColumns: "repeat(2, 1fr)",
     gap: "1.5rem",
-    maxWidth: "320px",
-    width: "100%"
+    maxWidth: "320px"
   },
   card: {
     background: "#1a1a1a",
     border: "1px solid #333",
     borderRadius: "12px",
-    padding: "1.5rem 1rem",
+    padding: "1.5rem",
     cursor: "pointer",
-    color: "#eaeaea"
-  },
-  avatar: {
-    fontSize: "2.5rem",
-    marginBottom: "0.5rem"
+    color: "#eee"
   },
   panel: {
     background: "#1a1a1a",
     border: "1px solid #333",
     borderRadius: "16px",
     padding: "2rem",
-    marginBottom: "2rem",
     minWidth: "260px"
   },
-  avatarBig: {
+  avatar: {
     fontSize: "3rem"
-  },
-  questWrapper: {
-    width: "100%",
-    maxWidth: "420px",
-    textAlign: "left"
-  },
-  questCard: {
-    background: "#161616",
-    border: "1px solid #333",
-    borderRadius: "12px",
-    padding: "1rem",
-    marginTop: "0.75rem"
-  },
-  questMeta: {
-    fontSize: "0.85rem",
-    opacity: 0.75,
-    marginTop: "0.25rem"
-  },
-  doneButton: {
-    marginTop: "0.75rem",
-    background: "#2a2a2a",
-    border: "1px solid #444",
-    color: "#eaeaea",
-    padding: "0.5rem 0.75rem",
-    borderRadius: "8px",
-    cursor: "pointer",
-    width: "100%"
   },
   logout: {
     marginTop: "2rem",
