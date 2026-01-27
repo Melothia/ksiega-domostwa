@@ -43,6 +43,14 @@ export default function Home() {
     setPlayer(p);
     setPartner(null);
 
+    // 🔑 J0 FIX – ZAWSZE zapewnij wpis miesięczny
+    await supabase.rpc("ensure_monthly_progress", {
+      p_player_id: p.id,
+      p_year: year,
+      p_month: month,
+    });
+
+    // TERAZ można bezpiecznie pobrać progress
     const { data: mp } = await supabase
       .from("monthly_progress")
       .select("*")
@@ -85,7 +93,7 @@ export default function Home() {
     await loadPlayer(player);
   }
 
-  /* PLAYER SELECTION */
+  /* PLAYER SELECT */
   if (!player) {
     return (
       <main style={styles.app}>
@@ -100,7 +108,7 @@ export default function Home() {
     );
   }
 
-  /* LOADING GUARD — 🔑 FIX */
+  /* LOADING GUARD */
   if (loadingProfile || !progress) {
     return (
       <main style={styles.app}>
@@ -112,7 +120,6 @@ export default function Home() {
   /* MAIN UI */
   return (
     <main style={styles.app}>
-      {/* PLAYER PANEL */}
       <section style={styles.card}>
         <img
           src={player.avatar_url || dicebear(player.nick)}
@@ -124,7 +131,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* KRONIKA */}
       <section style={{ ...styles.card, background: "#1b1814" }}>
         <strong>📜 Kronika Gildii</strong>
         {recent.map((r, i) => (
@@ -141,7 +147,6 @@ export default function Home() {
         ))}
       </section>
 
-      {/* QUESTY */}
       {quests.map((q) => {
         const bonusXp = q.is_emergency
           ? Math.ceil(q.base_xp * 1.3)
@@ -156,69 +161,48 @@ export default function Home() {
               borderLeft: q.is_emergency ? "4px solid #b63c2d" : "none",
             }}
           >
-            <strong>
-              {q.is_emergency && "⚠ "}
-              {q.name}
-            </strong>
+            <strong>{q.is_emergency && "⚠ "} {q.name}</strong>
 
             <div style={{ fontSize: 14, color: "#bbb", marginTop: 4 }}>
               ⏱ {q.time_minutes} min ·{" "}
-              {!q.is_emergency && <>⭐ {q.base_xp} XP</>}
-
-              {q.is_emergency && (
+              {q.is_emergency ? (
                 <>
-                  <span style={{ textDecoration: "line-through", marginLeft: 6 }}>
+                  <span style={{ textDecoration: "line-through" }}>
                     ⭐ {q.base_xp}
                   </span>
-                  <span style={{ color: "#ff6b5c", fontWeight: "bold", marginLeft: 6 }}>
-                    ⚡ {bonusXp} XP
-                  </span>
-                  <span style={{ marginLeft: 6, fontSize: 12 }}>
-                    (+30% Emergency)
+                  <span style={{ color: "#ff6b5c", marginLeft: 6 }}>
+                    ⚡ {bonusXp} XP (+30%)
                   </span>
                 </>
+              ) : (
+                <>⭐ {q.base_xp} XP</>
               )}
             </div>
 
             {q.max_slots === 1 && (
-              <button
-                style={styles.btn}
-                onClick={() => executeQuest(q.id, [player.id], bonusXp)}
-              >
+              <button style={styles.btn}
+                onClick={() => executeQuest(q.id, [player.id], bonusXp)}>
                 Wykonaj
               </button>
             )}
 
             {q.max_slots > 1 && (
               <>
-                <button
-                  style={styles.btn}
-                  onClick={() => executeQuest(q.id, [player.id], bonusXp)}
-                >
+                <button style={styles.btn}
+                  onClick={() => executeQuest(q.id, [player.id], bonusXp)}>
                   Wykonaj samodzielnie
                 </button>
 
-                <select
-                  value={partner || ""}
-                  onChange={(e) => setPartner(e.target.value)}
-                >
+                <select value={partner || ""} onChange={(e) => setPartner(e.target.value)}>
                   <option value="">Wybierz gracza…</option>
-                  {players
-                    .filter((p) => p.id !== player.id)
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.nick}
-                      </option>
-                    ))}
+                  {players.filter(p => p.id !== player.id).map(p => (
+                    <option key={p.id} value={p.id}>{p.nick}</option>
+                  ))}
                 </select>
 
                 {partner && (
-                  <button
-                    style={styles.btn}
-                    onClick={() =>
-                      executeQuest(q.id, [player.id, partner], bonusXp)
-                    }
-                  >
+                  <button style={styles.btn}
+                    onClick={() => executeQuest(q.id, [player.id, partner], bonusXp)}>
                     Wykonaj razem
                   </button>
                 )}
@@ -239,11 +223,7 @@ const styles = {
     padding: 20,
     fontFamily: "serif",
   },
-  card: {
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
+  card: { padding: 12, borderRadius: 8, marginBottom: 16 },
   playerBtn: {
     display: "flex",
     gap: 10,
