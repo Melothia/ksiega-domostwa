@@ -14,9 +14,6 @@ export default function Home() {
   const [player, setPlayer] = useState(null);
   const [progress, setProgress] = useState(null);
   const [tab, setTab] = useState("main");
-  const [receipts, setReceipts] = useState([]);
-  const [shop, setShop] = useState("");
-  const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
 
   const now = new Date();
@@ -48,28 +45,7 @@ export default function Home() {
       .single();
 
     setProgress(mp);
-
-    const { data: r } = await supabase
-      .from("receipts")
-      .select("id, shop, amount, created_at, players(nick)")
-      .order("created_at", { ascending: false });
-
-    setReceipts(r || []);
     setLoading(false);
-  }
-
-  async function addReceipt() {
-    if (!shop || !amount) return;
-
-    await supabase.rpc("add_receipt", {
-      p_player_id: player.id,
-      p_shop: shop,
-      p_amount: amount,
-    });
-
-    setShop("");
-    setAmount("");
-    loadPlayer(player);
   }
 
   if (!player) {
@@ -77,7 +53,11 @@ export default function Home() {
       <main style={styles.app}>
         <h1>📖 Księga Domostwa</h1>
         {players.map((p) => (
-          <button key={p.id} style={styles.playerBtn} onClick={() => loadPlayer(p)}>
+          <button
+            key={p.id}
+            style={styles.playerBtn}
+            onClick={() => loadPlayer(p)}
+          >
             <img src={p.avatar_url || avatar(p.nick)} style={styles.avatar} />
             {p.nick}
           </button>
@@ -92,50 +72,55 @@ export default function Home() {
 
   return (
     <main style={styles.app}>
+      {/* PROFIL */}
       <section style={styles.card}>
-        <img src={player.avatar_url || avatar(player.nick)} style={styles.avatarLarge} />
+        <img
+          src={player.avatar_url || avatar(player.nick)}
+          style={styles.avatarLarge}
+        />
         <div>
-          <strong>{player.nick}</strong>
-          <div>Poziom {progress.level} · XP {progress.xp}/{progress.level * 100}</div>
+          <strong style={{ fontSize: 18 }}>
+            {player.nick}
+            {player.active_title && (
+              <span style={{ color: styles.gold.color }}>
+                {" "}
+                · {player.active_title}
+              </span>
+            )}
+          </strong>
+          <div>
+            Poziom {progress.level} · XP {progress.xp}/{progress.level * 100}
+          </div>
         </div>
       </section>
 
+      {/* TABS */}
       <div style={styles.tabs}>
-        <button style={styles.tabBtn} onClick={() => setTab("main")}>🏠 Główna</button>
-        <button style={styles.tabBtn} onClick={() => setTab("receipts")}>🧾 Skrzynia Paragonów</button>
+        <button
+          style={{
+            ...styles.tabBtn,
+            background: tab === "main" ? "#6f4bd8" : "#3a2c52",
+          }}
+          onClick={() => setTab("main")}
+        >
+          🏠 Główna
+        </button>
+        <button
+          style={{
+            ...styles.tabBtn,
+            background: tab === "receipts" ? "#6f4bd8" : "#3a2c52",
+          }}
+          onClick={() => setTab("receipts")}
+        >
+          🧾 Paragony
+        </button>
       </div>
 
-      {tab === "receipts" && (
-        <section style={styles.card}>
-          <h3>🧾 Skrzynia Paragonów</h3>
-
-          <input
-            placeholder="Sklep"
-            value={shop}
-            onChange={(e) => setShop(e.target.value)}
-            style={styles.input}
-          />
-          <input
-            placeholder="Kwota"
-            type="number"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            style={styles.input}
-          />
-          <button style={styles.btn} onClick={addReceipt}>
-            Dodaj Paragon (+50 XP)
-          </button>
-
-          <hr style={{ margin: "12px 0" }} />
-
-          {receipts.map((r) => (
-            <div key={r.id} style={{ marginBottom: 6 }}>
-              <strong>{r.players?.nick}</strong> · {r.shop} · {r.amount} zł
-              <div style={{ fontSize: 12, color: "#aaa" }}>
-                Na osobę: {(r.amount / 4).toFixed(2)} zł
-              </div>
-            </div>
-          ))}
+      {tab === "main" && (
+        <section style={styles.cardMuted}>
+          <em>
+            Tu wracają: questy, ranking miesiąca, questy nadchodzące.
+          </em>
         </section>
       )}
     </main>
@@ -143,13 +128,49 @@ export default function Home() {
 }
 
 const styles = {
-  app: { minHeight: "100vh", background: "#1e1b16", color: "#f4f1ea", padding: 20, fontFamily: "serif" },
-  card: { padding: 14, borderRadius: 10, marginBottom: 16 },
-  tabs: { display: "flex", gap: 8, marginBottom: 12 },
-  tabBtn: { flex: 1, padding: 10, background: "#6b4f1d", border: "none", color: "#fff" },
-  playerBtn: { display: "flex", gap: 10, padding: 10, background: "#6b4f1d", border: "none", color: "#fff", marginBottom: 8 },
+  app: {
+    minHeight: "100vh",
+    background: "#1b1625",
+    color: "#f2eefc",
+    padding: 20,
+    fontFamily: "serif",
+  },
+  card: {
+    background: "#2a2038",
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 16,
+    boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+  },
+  cardMuted: {
+    background: "#241c33",
+    padding: 14,
+    borderRadius: 14,
+    opacity: 0.6,
+  },
+  tabs: {
+    display: "flex",
+    gap: 8,
+    marginBottom: 12,
+  },
+  tabBtn: {
+    flex: 1,
+    padding: 10,
+    border: "none",
+    color: "#fff",
+    borderRadius: 10,
+  },
+  playerBtn: {
+    display: "flex",
+    gap: 10,
+    padding: 12,
+    background: "#3a2c52",
+    border: "none",
+    color: "#fff",
+    marginBottom: 8,
+    borderRadius: 10,
+  },
   avatar: { width: 36, height: 36, borderRadius: "50%" },
   avatarLarge: { width: 64, height: 64, borderRadius: "50%" },
-  input: { width: "100%", marginBottom: 6, padding: 6 },
-  btn: { padding: "6px 12px", background: "#8a6a2f", border: "none", color: "white" }
+  gold: { color: "#c9a86a" },
 };
