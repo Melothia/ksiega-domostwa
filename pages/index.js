@@ -37,7 +37,6 @@ export default function Home() {
       .then(({ data }) => setPlayers(data || []));
   }, []);
 
-  /* LOAD PLAYER DATA */
   async function loadPlayer(p) {
     setPlayer(p);
     setPartner(null);
@@ -52,7 +51,11 @@ export default function Home() {
 
     setProgress(mp);
 
-    const { data: qs } = await supabase.from("quests").select("*");
+    const { data: qs } = await supabase
+      .from("quests_with_status")
+      .select("*")
+      .order("is_emergency", { ascending: false });
+
     setQuests(qs || []);
 
     const { data: rc } = await supabase
@@ -64,7 +67,7 @@ export default function Home() {
     setRecent(rc || []);
   }
 
-  async function executeQuest(questId, ids) {
+  async function executeQuest(questId, ids, xp) {
     for (const id of ids) {
       const { error } = await supabase.rpc("complete_quest", {
         p_player_id: id,
@@ -75,6 +78,7 @@ export default function Home() {
         return;
       }
     }
+    alert(`⚠ Emergency opanowane!\n+${xp} XP`);
     await loadPlayer(player);
   }
 
@@ -98,6 +102,7 @@ export default function Home() {
 
   return (
     <main style={styles.app}>
+      {/* PLAYER PANEL */}
       <section style={styles.card}>
         <img
           src={player.avatar_url || dicebear(player.nick)}
@@ -105,10 +110,11 @@ export default function Home() {
         />
         <div>
           <strong>{player.nick}</strong><br />
-          Poziom {progress?.level} · XP {progress?.xp}/{progress?.level * 100}
+          Poziom {progress.level} · XP {progress.xp}/{progress.level * 100}
         </div>
       </section>
 
+      {/* KRONIKA */}
       <section style={{ ...styles.card, background: "#1b1814" }}>
         <strong>📜 Kronika Gildii</strong>
         {recent.map((r, i) => (
@@ -128,71 +134,94 @@ export default function Home() {
         ))}
       </section>
 
-      {quests.map((q) => (
-        <section key={q.id} style={styles.card}>
-          <strong>
-  {q.is_emergency && "⚠ "}
-  {q.name}
-</strong>
+      {/* QUESTY */}
+      {quests.map((q) => {
+        const bonusXp = q.is_emergency
+          ? Math.ceil(q.base_xp * 1.3)
+          : q.base_xp;
 
-<div style={{ fontSize: 14, color: "#bbb" }}>
-  ⏱ {q.time_minutes} min ·{" "}
-  {!q.is_emergency && <>⭐ {q.base_xp} XP</>}
+        return (
+          <section
+            key={q.id}
+            style={{
+              ...styles.card,
+              background: q.is_emergency ? "#3a1f1f" : "#2a251d",
+              borderLeft: q.is_emergency ? "4px solid #b63c2d" : "none",
+            }}
+          >
+            <strong>
+              {q.is_emergency && "⚠ "}
+              {q.name}
+            </strong>
 
-  {q.is_emergency && (
-    <>
-      <span style={{ textDecoration: "line-through", marginRight: 6 }}>
-        ⭐ {q.base_xp} XP
-      </span>
-      <span style={{ color: "#ff6b5c", fontWeight: "bold" }}>
-        ⚡ {Math.ceil(q.base_xp * 1.3)} XP
-      </span>
-      <span style={{ marginLeft: 6, fontSize: 12 }}>
-        (+30% Emergency)
-      </span>
-    </>
-  )}
-</div>
+            <div style={{ fontSize: 14, color: "#bbb", marginTop: 4 }}>
+              ⏱ {q.time_minutes} min ·{" "}
+              {!q.is_emergency && <>⭐ {q.base_xp} XP</>}
 
+              {q.is_emergency && (
+                <>
+                  <span style={{ textDecoration: "line-through", marginLeft: 6 }}>
+                    ⭐ {q.base_xp}
+                  </span>
+                  <span style={{ color: "#ff6b5c", fontWeight: "bold", marginLeft: 6 }}>
+                    ⚡ {bonusXp} XP
+                  </span>
+                  <span style={{ marginLeft: 6, fontSize: 12 }}>
+                    (+30% Emergency)
+                  </span>
+                </>
+              )}
+            </div>
 
-          {q.max_slots === 1 && (
-            <button style={styles.btn} onClick={() => executeQuest(q.id, [player.id])}>
-              Wykonaj
-            </button>
-          )}
-
-          {q.max_slots > 1 && (
-            <>
-              <button style={styles.btn} onClick={() => executeQuest(q.id, [player.id])}>
-                Wykonaj samodzielnie
-              </button>
-
-              <select
-                value={partner || ""}
-                onChange={(e) => setPartner(e.target.value)}
+            {/* SOLO */}
+            {q.max_slots === 1 && (
+              <button
+                style={styles.btn}
+                onClick={() => executeQuest(q.id, [player.id], bonusXp)}
               >
-                <option value="">Wybierz gracza…</option>
-                {players
-                  .filter((p) => p.id !== player.id)
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nick}
-                    </option>
-                  ))}
-              </select>
+                Wykonaj
+              </button>
+            )}
 
-              {partner && (
+            {/* GRUPOWE */}
+            {q.max_slots > 1 && (
+              <>
                 <button
                   style={styles.btn}
-                  onClick={() => executeQuest(q.id, [player.id, partner])}
+                  onClick={() => executeQuest(q.id, [player.id], bonusXp)}
                 >
-                  Wykonaj razem
+                  Wykonaj samodzielnie
                 </button>
-              )}
-            </>
-          )}
-        </section>
-      ))}
+
+                <select
+                  value={partner || ""}
+                  onChange={(e) => setPartner(e.target.value)}
+                >
+                  <option value="">Wybierz gracza…</option>
+                  {players
+                    .filter((p) => p.id !== player.id)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nick}
+                      </option>
+                    ))}
+                </select>
+
+                {partner && (
+                  <button
+                    style={styles.btn}
+                    onClick={() =>
+                      executeQuest(q.id, [player.id, partner], bonusXp)
+                    }
+                  >
+                    Wykonaj razem
+                  </button>
+                )}
+              </>
+            )}
+          </section>
+        );
+      })}
     </main>
   );
 }
@@ -206,7 +235,6 @@ const styles = {
     fontFamily: "serif",
   },
   card: {
-    background: "#2a251d",
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
@@ -230,7 +258,5 @@ const styles = {
     background: "#8a6a2f",
     border: "none",
     color: "white",
-background: q.is_emergency ? "#3a1f1f" : "#2a251d",
-borderLeft: q.is_emergency ? "4px solid #b63c2d" : "none",
   },
 };
