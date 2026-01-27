@@ -30,6 +30,10 @@ function daysBetween(a, b) {
   return Math.floor((a - b) / (1000 * 60 * 60 * 24));
 }
 
+function xpForNextLevel(level) {
+  return 100 + (level - 1) * 50;
+}
+
 /* =====================
    APP
 ===================== */
@@ -38,6 +42,8 @@ export default function Home() {
   const [player, setPlayer] = useState(null);
   const [progress, setProgress] = useState(null);
   const [quests, setQuests] = useState([]);
+  const [slots, setSlots] = useState([]);
+
   const month = currentMonth();
 
   useEffect(() => {
@@ -47,25 +53,29 @@ export default function Home() {
 
   async function loadPlayer(playerId) {
     localStorage.setItem("ksiega_player_id", playerId);
-    const basePlayer = PLAYERS.find(p => p.id === playerId);
-    setPlayer(basePlayer);
+    setPlayer(PLAYERS.find(p => p.id === playerId));
+    await loadProgress(playerId);
+    await loadWorld();
+  }
 
-    const { data: prog } = await supabase
+  async function loadProgress(playerId) {
+    const { data } = await supabase
       .from("monthly_progress")
       .select("*")
       .eq("player_id", playerId)
       .eq("month", month)
       .single();
-
-    setProgress(prog);
-    loadQuests();
+    setProgress(data);
   }
 
-  async function loadQuests() {
+  async function loadWorld() {
     const { data: questList } = await supabase.from("quests").select("*");
     const { data: completions } = await supabase
       .from("quest_completions")
-      .select("quest_id, completed_at");
+      .select("*");
+    const { data: slotList } = await supabase.from("quest_slots").select("*");
+
+    setSlots(slotList || []);
 
     const now = new Date();
 
@@ -75,19 +85,46 @@ export default function Home() {
         .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))[0];
 
       let status = "Spokojny";
-
-      if (!last) {
-        status = "Emergency";
-      } else {
+      if (!last) status = "Emergency";
+      else {
         const diff = daysBetween(now, new Date(last.completed_at));
         if (diff > q.frequency_days) status = "Emergency";
         else if (diff === q.frequency_days) status = "Do wykonania";
       }
 
-      return { ...q, status };
+      const taken = slotList?.filter(s => s.quest_id === q.id) || [];
+
+      return { ...q, status, taken };
     });
 
     setQuests(computed);
+  }
+
+  async function takeSlot(questId) {
+    await supabase.from("quest_slots").insert({
+      quest_id: questId,
+      player_id: player.id
+    });
+    loadWorld();
+  }
+
+  async function completeQuest(q) {
+    await supabase.from("quest_completions").insert({
+      quest_id: q.id,
+      player_id: player.id,
+      completed_at: new Date().toISOString()
+    });
+
+    await supabase
+      .from("monthly_progress")
+      .update({ xp: progress.xp + q.base_xp })
+      .eq("player_id", player.id)
+      .eq("month", month);
+
+    await supabase.from("quest_slots").delete().eq("quest_id", q.id);
+
+    loadProgress(player.id);
+    loadWorld();
   }
 
   function logout() {
@@ -101,7 +138,6 @@ export default function Home() {
       <main style={styles.main}>
         <h1 style={styles.title}>📜 Księga Domostwa</h1>
         <p>Wybierz bohatera</p>
-
         <div style={styles.grid}>
           {PLAYERS.map(p => (
             <button key={p.id} style={styles.card} onClick={() => loadPlayer(p.id)}>
@@ -122,20 +158,32 @@ export default function Home() {
         <div style={styles.avatar}>{player.avatar}</div>
         <h2>{player.nick}</h2>
         <p>
-          Poziom: {progress.level} • XP: {progress.xp}/
-          {100 + (progress.level - 1) * 50}
+          Poziom: {progress.level} • XP: {progress.xp}/{xpForNextLevel(progress.level)}
         </p>
       </div>
 
       <h3 style={{ marginTop: "2rem" }}>📋 Quest Log Gildii</h3>
 
       <div style={styles.questList}>
-        {quests.map(q => (
-          <div key={q.id} style={styles.quest}>
-            <strong>{q.name}</strong>
-            <div style={styles.badge(q.status)}>{q.status}</div>
-          </div>
-        ))}
+        {quests.map(q => {
+          const mySlot = q.taken.find(s => s.player_id === player.id);
+          const slotsFull = q.taken.length >= q.max_slots;
+
+          return (
+            <div key={q.id} style={styles.quest}>
+              <strong>{q.name}</strong>
+              <div>{q.status}</div>
+
+              {!mySlot && !slotsFull && (
+                <button onClick={() => takeSlot(q.id)}>Zajmij slot</button>
+              )}
+
+              {mySlot && (
+                <button onClick={() => completeQuest(q)}>Wykonane</button>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <button onClick={logout} style={styles.logout}>
@@ -154,9 +202,6 @@ const styles = {
     minHeight: "100vh",
     background: "#0f0f0f",
     color: "#eee",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
     padding: "2rem",
     textAlign: "center"
   },
@@ -164,16 +209,14 @@ const styles = {
   grid: {
     display: "grid",
     gridTemplateColumns: "repeat(2, 1fr)",
-    gap: "1.5rem",
-    marginTop: "1rem"
+    gap: "1.5rem"
   },
   card: {
     background: "#1a1a1a",
     border: "1px solid #333",
     borderRadius: "12px",
     padding: "1.5rem",
-    cursor: "pointer",
-    color: "#eee"
+    cursor: "pointer"
   },
   panel: {
     background: "#1a1a1a",
@@ -184,33 +227,21 @@ const styles = {
   },
   avatar: { fontSize: "3rem" },
   questList: {
-    width: "100%",
     maxWidth: "420px",
-    marginTop: "1rem"
+    margin: "1rem auto"
   },
   quest: {
-    display: "flex",
-    justifyContent: "space-between",
     background: "#161616",
-    padding: "0.75rem 1rem",
+    padding: "1rem",
     borderRadius: "8px",
     marginBottom: "0.5rem"
   },
-  badge: status => ({
-    color:
-      status === "Emergency"
-        ? "#ff5c5c"
-        : status === "Do wykonania"
-        ? "#ffb347"
-        : "#5cff8d"
-  }),
   logout: {
     marginTop: "2rem",
     background: "transparent",
     border: "1px solid #444",
     color: "#aaa",
     padding: "0.6rem 1.2rem",
-    borderRadius: "8px",
-    cursor: "pointer"
+    borderRadius: "8px"
   }
 };
