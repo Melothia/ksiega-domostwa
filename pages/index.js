@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase";
 
 /* ===== KOMPONENTY ===== */
 import LoginScreen from "../components/LoginScreen";
-import Layout from "../components/Layouts";
+import Layout from "../components/Layout";
 import Tabs from "../components/Tabs";
 import PlayerPanel from "../components/PlayerPanel";
 import RankingBar from "../components/RankingBar";
