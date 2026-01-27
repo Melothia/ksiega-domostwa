@@ -22,6 +22,15 @@ const QUESTS = [
 ];
 
 /* =====================
+   XP & LEVEL LOGIKA
+===================== */
+
+// prosty, rosnący próg (łatwy do balansowania)
+function xpForNextLevel(level) {
+  return 100 + (level - 1) * 50;
+}
+
+/* =====================
    APLIKACJA
 ===================== */
 
@@ -34,8 +43,13 @@ export default function Home() {
   }, []);
 
   function selectPlayer(p) {
-    localStorage.setItem("ksiega_player", JSON.stringify(p));
-    setPlayer(p);
+    const playerData = {
+      ...p,
+      level: 1,
+      xp: 0
+    };
+    localStorage.setItem("ksiega_player", JSON.stringify(playerData));
+    setPlayer(playerData);
   }
 
   function logout() {
@@ -48,6 +62,8 @@ export default function Home() {
   ===================== */
 
   if (player) {
+    const xpNeeded = xpForNextLevel(player.level);
+
     return (
       <main style={styles.main}>
         <h1 style={styles.title}>📜 Księga Domostwa</h1>
@@ -55,7 +71,9 @@ export default function Home() {
         <div style={styles.panel}>
           <div style={styles.avatarBig}>{player.avatar}</div>
           <h2>{player.name}</h2>
-          <p style={{ opacity: 0.7 }}>Poziom: 1 • XP: 0</p>
+          <p style={{ opacity: 0.8 }}>
+            Poziom: {player.level} • XP: {player.xp}/{xpNeeded}
+          </p>
         </div>
 
         <div style={styles.questWrapper}>
