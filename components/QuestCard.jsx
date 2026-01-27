@@ -22,7 +22,7 @@ export default function QuestCard({
   return (
     <div className="card">
       {isEmergency(quest) && (
-        <div className="badge-emergency">🚨 Emergency · +50% XP</div>
+        <div className="badge-emergency">🚨 Emergency · +30% XP</div>
       )}
 
       <strong>{quest.name}</strong>
