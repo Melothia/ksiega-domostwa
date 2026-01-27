@@ -9,11 +9,20 @@ const supabase = createClient(
 const avatar = (seed) =>
   `https://api.dicebear.com/7.x/adventurer/svg?seed=${seed}`;
 
+const rewards = {
+  Reu: "🎬 Wyjście do Kina",
+  Melothy: "🎲 Wieczór Planszówkowy",
+  Pshemcky: "🏃 Wspólna Aktywność Sportowa",
+  Benditt: "🍜 Wyjście na Ramen",
+};
+
+const medals = ["🥇", "🥈", "🥉", "🎖️"];
+
 export default function Home() {
   const [players, setPlayers] = useState([]);
   const [player, setPlayer] = useState(null);
   const [progress, setProgress] = useState(null);
-  const [tab, setTab] = useState("main");
+  const [ranking, setRanking] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const now = new Date();
@@ -45,6 +54,15 @@ export default function Home() {
       .single();
 
     setProgress(mp);
+
+    const { data: rank } = await supabase
+      .from("monthly_progress")
+      .select("xp, players(nick)")
+      .eq("year", year)
+      .eq("month", month)
+      .order("xp", { ascending: false });
+
+    setRanking(rank || []);
     setLoading(false);
   }
 
@@ -94,35 +112,26 @@ export default function Home() {
         </div>
       </section>
 
-      {/* TABS */}
-      <div style={styles.tabs}>
-        <button
-          style={{
-            ...styles.tabBtn,
-            background: tab === "main" ? "#6f4bd8" : "#3a2c52",
-          }}
-          onClick={() => setTab("main")}
-        >
-          🏠 Główna
-        </button>
-        <button
-          style={{
-            ...styles.tabBtn,
-            background: tab === "receipts" ? "#6f4bd8" : "#3a2c52",
-          }}
-          onClick={() => setTab("receipts")}
-        >
-          🧾 Paragony
-        </button>
-      </div>
+      {/* RANKING */}
+      <section style={styles.rankBar}>
+        {ranking.map((r, i) => (
+          <div key={i} style={styles.rankItem}>
+            <span>{medals[i]}</span>
+            <strong>{r.players.nick}</strong>
+            {i === 0 && rewards[r.players.nick] && (
+              <span style={styles.reward}>
+                {rewards[r.players.nick]}
+              </span>
+            )}
+          </div>
+        ))}
+      </section>
 
-      {tab === "main" && (
-        <section style={styles.cardMuted}>
-          <em>
-            Tu wracają: questy, ranking miesiąca, questy nadchodzące.
-          </em>
-        </section>
-      )}
+      <section style={styles.cardMuted}>
+        <em>
+          Dalej: questy, questy nadchodzące i kronika.
+        </em>
+      </section>
     </main>
   );
 }
@@ -130,41 +139,53 @@ export default function Home() {
 const styles = {
   app: {
     minHeight: "100vh",
-    background: "#1b1625",
-    color: "#f2eefc",
+    background: "#181421",
+    color: "#f1edf9",
     padding: 20,
     fontFamily: "serif",
   },
   card: {
-    background: "#2a2038",
-    padding: 14,
-    borderRadius: 14,
-    marginBottom: 16,
-    boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
-  },
-  cardMuted: {
     background: "#241c33",
     padding: 14,
     borderRadius: 14,
-    opacity: 0.6,
-  },
-  tabs: {
-    display: "flex",
-    gap: 8,
     marginBottom: 12,
+    boxShadow: "0 4px 10px rgba(0,0,0,0.4)",
+    display: "flex",
+    gap: 14,
+    alignItems: "center",
   },
-  tabBtn: {
-    flex: 1,
-    padding: 10,
-    border: "none",
-    color: "#fff",
-    borderRadius: 10,
+  cardMuted: {
+    background: "#1f192d",
+    padding: 14,
+    borderRadius: 14,
+    opacity: 0.7,
+  },
+  rankBar: {
+    display: "flex",
+    gap: 12,
+    background: "#201a2e",
+    padding: "10px 12px",
+    borderRadius: 12,
+    marginBottom: 16,
+    overflowX: "auto",
+  },
+  rankItem: {
+    display: "flex",
+    gap: 6,
+    alignItems: "center",
+    whiteSpace: "nowrap",
+    fontSize: 14,
+  },
+  reward: {
+    marginLeft: 6,
+    color: "#c9a86a",
+    fontSize: 13,
   },
   playerBtn: {
     display: "flex",
     gap: 10,
     padding: 12,
-    background: "#3a2c52",
+    background: "#31284a",
     border: "none",
     color: "#fff",
     marginBottom: 8,
