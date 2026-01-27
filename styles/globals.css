@@ -1,26 +1,92 @@
-* {
+/* ===== RESET ===== */
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
-body {
+html, body {
+  padding: 0;
   margin: 0;
-  background: radial-gradient(circle at top, #2b2140, #0f0b1a);
-  color: #f5f3ff;
-  font-family: "Segoe UI", system-ui, sans-serif;
 }
 
+/* ===== THEME ===== */
+:root {
+  --bg-main: #0f0b1a;
+  --bg-card: rgba(255, 255, 255, 0.06);
+  --bg-card-strong: rgba(255, 255, 255, 0.1);
+  --violet: #5a4690;
+  --violet-dark: #2a1f44;
+  --gold: #d6b36a;
+  --text-main: #f5f3ff;
+  --text-muted: #b7b2d6;
+  --danger: #b84a4a;
+}
+
+body {
+  background: radial-gradient(circle at top, #2b2140, var(--bg-main));
+  color: var(--text-main);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ===== TYPO ===== */
+h1, h2, h3, h4 {
+  margin: 0 0 8px 0;
+  font-weight: 600;
+}
+
+small {
+  color: var(--text-muted);
+}
+
+/* ===== LAYOUT ===== */
+.container {
+  padding: 14px;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+/* ===== CARDS ===== */
+.card {
+  background: var(--bg-card);
+  border-radius: 16px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.card.strong {
+  background: var(--bg-card-strong);
+}
+
+/* ===== BUTTONS ===== */
 button {
-  background: #3a2c5f;
-  color: white;
+  appearance: none;
   border: none;
-  padding: 8px 12px;
-  border-radius: 10px;
+  background: var(--violet);
+  color: white;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
 }
 
-button:hover {
-  background: #4b3a78;
+button.secondary {
+  background: var(--violet-dark);
 }
 
+button.danger {
+  background: var(--danger);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== TABS ===== */
 .tabs {
   display: flex;
   gap: 6px;
@@ -30,19 +96,83 @@ button:hover {
 .tab {
   flex: 1;
   text-align: center;
-  padding: 8px;
-  border-radius: 10px;
-  background: #2a1f44;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--violet-dark);
+  font-size: 14px;
 }
 
 .tab.active {
-  background: #5a4690;
+  background: var(--violet);
 }
 
-.card {
-  background: rgba(255,255,255,0.05);
-  border-radius: 14px;
+/* ===== LOGIN (Netflix-style) ===== */
+.login-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.login-card {
+  background: var(--bg-card);
+  border-radius: 18px;
   padding: 12px;
-  margin-bottom: 12px;
+  text-align: center;
+  cursor: pointer;
 }
 
+.login-card img {
+  width: 100%;
+  border-radius: 50%;
+  border: 3px solid var(--gold);
+}
+
+.login-card h3 {
+  margin-top: 10px;
+}
+
+/* ===== QUESTS ===== */
+.quest-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+  margin: 6px 0;
+}
+
+.badge-emergency {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--danger);
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.upcoming {
+  opacity: 0.45;
+}
+
+/* ===== CHRONICLE ===== */
+.chronicle-item {
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.chronicle-fade {
+  mask-image: linear-gradient(to bottom, black 70%, transparent);
+}
+
+/* ===== RANKING ===== */
+.ranking {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.rank-item {
+  background: var(--bg-card);
+  padding: 10px;
+  border-radius: 12px;
+  min-width: 140px;
+  text-align: center;
+}
