@@ -1,1 +1,48 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at top, #2b2140, #0f0b1a);
+  color: #f5f3ff;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+button {
+  background: #3a2c5f;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 10px;
+}
+
+button:hover {
+  background: #4b3a78;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.tab {
+  flex: 1;
+  text-align: center;
+  padding: 8px;
+  border-radius: 10px;
+  background: #2a1f44;
+}
+
+.tab.active {
+  background: #5a4690;
+}
+
+.card {
+  background: rgba(255,255,255,0.05);
+  border-radius: 14px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
 
