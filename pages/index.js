@@ -1,160 +1,221 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
+import LoginScreen from "../components/LoginScreen";
+import Layout from "../components/Layout";
+import Tabs from "../components/Tabs";
+import PlayerPanel from "../components/PlayerPanel";
+import RankingBar from "../components/RankingBar";
+
+import QuestList from "../components/QuestList";
+import UpcomingQuest from "../components/UpcomingQuest";
+
+import AchievementsView from "../components/AchievementsView";
+import ChronicleView from "../components/ChronicleView";
+import ReceiptsView from "../components/ReceiptsView";
+
+import { getNextAvailableText } from "../lib/dateUtils";
+
+/* ===== KONFIGURACJA GRACZY (STATYCZNA) ===== */
+const PLAYERS = [
+  {
+    id: "b45ef046-f815-4eda-8015-d9212d9ac2ee",
+    nick: "Melothy",
+    avatar: "/Melothy.png",
+    title: "Zaklinaczka Mopa",
+  },
+  {
+    id: "reu-id",
+    nick: "Reu",
+    avatar: "/Reu.png",
+    title: "Cień Domostwa",
+  },
+  {
+    id: "pshemcky-id",
+    nick: "Pshemcky",
+    avatar: "/Pshemcky.png",
+    title: "Strażnik Natury",
+  },
+  {
+    id: "benditt-id",
+    nick: "Benditt",
+    avatar: "/Benditt.png",
+    title: "Koci Kleryk",
+  },
+];
+
 export default function Home() {
+  /* ===== STANY GŁÓWNE ===== */
   const [player, setPlayer] = useState(null);
   const [tab, setTab] = useState("main");
   const [loading, setLoading] = useState(false);
 
+  /* ===== DANE ===== */
   const [progress, setProgress] = useState(null);
+  const [ranking, setRanking] = useState([]);
+  const [lastWinner, setLastWinner] = useState("—");
+
   const [quests, setQuests] = useState([]);
   const [upcoming, setUpcoming] = useState([]);
   const [slots, setSlots] = useState({});
 
-  // ==== LOGIN ====
-  const PLAYERS = [
-    { id: "b45ef046-f815-4eda-8015-d9212d9ac2ee", nick: "Melothy", avatar: "/Melothy.png" },
-    { id: "reu-id", nick: "Reu", avatar: "/Reu.png" },
-    { id: "pshemcky-id", nick: "Pshemcky", avatar: "/Pshemcky.png" },
-    { id: "benditt-id", nick: "Benditt", avatar: "/Benditt.png" }
-  ];
+  /* ===== LOGIN ===== */
+  if (!player) {
+    return (
+      <LoginScreen
+        players={PLAYERS}
+        onSelect={p => setPlayer(p)}
+      />
+    );
+  }
 
-  // ==== LOAD DATA ====
+  /* ===== ŁADOWANIE DANYCH ===== */
   useEffect(() => {
-    if (!player) return;
-
-    const load = async () => {
+    const loadAll = async () => {
       setLoading(true);
 
+      /* reset miesiąca jeśli trzeba */
       await supabase.rpc("reset_month_if_needed");
 
+      /* progress gracza */
       const { data: mp } = await supabase
         .from("monthly_progress")
         .select("*")
         .eq("player_id", player.id)
         .single();
 
+      setProgress(mp ?? null);
+
+      /* ranking miesiąca */
+      const { data: rank } = await supabase
+        .from("monthly_progress")
+        .select("players(nick), level, xp")
+        .order("level", { ascending: false })
+        .order("xp", { ascending: false });
+
+      setRanking(
+        (rank ?? []).map(r => ({
+          nick: r.players?.nick,
+          level: r.level,
+        }))
+      );
+
+      /* gracz miesiąca poprzedniego */
+      const { data: winner } = await supabase.rpc(
+        "last_month_winner"
+      );
+      setLastWinner(winner ?? "—");
+
+      /* questy */
       const { data: q } = await supabase
         .from("quests")
-        .select("*")
-        .order("quest_type", { ascending: false });
+        .select("*");
 
+      /* sloty */
       const { data: s } = await supabase
         .from("quest_slots")
-        .select("quest_id, player_id, players(nick)");
+        .select("quest_id, players(nick)");
 
-      setProgress(mp);
-
-      const active = [];
-      const upcomingList = [];
       const slotMap = {};
-
-      s?.forEach(sl => {
-        if (!slotMap[sl.quest_id]) slotMap[sl.quest_id] = [];
-        slotMap[sl.quest_id].push(sl.players?.nick);
+      (s ?? []).forEach(row => {
+        if (!slotMap[row.quest_id]) slotMap[row.quest_id] = [];
+        slotMap[row.quest_id].push(row.players.nick);
       });
+      setSlots(slotMap);
 
-      q?.forEach(quest => {
-        const lastDone = quest.last_completed_at
-          ? new Date(quest.last_completed_at)
-          : null;
+      /* rozdziel questy */
+      const active = [];
+      const future = [];
 
-        const nextDue = lastDone
-          ? new Date(lastDone.getTime() + quest.frequency_days * 86400000)
-          : new Date(0);
-
-        if (nextDue > new Date()) {
-          upcomingList.push({ ...quest, nextDue });
-        } else {
+      (q ?? []).forEach(quest => {
+        if (quest.is_active) {
           active.push(quest);
+        } else {
+          future.push(quest);
         }
       });
 
       setQuests(active);
-      setUpcoming(upcomingList);
-      setSlots(slotMap);
+      setUpcoming(future);
 
       setLoading(false);
     };
 
-    load();
+    loadAll();
   }, [player]);
 
-  // ==== ACTIONS ====
-  const doQuest = async quest => {
+  /* ===== AKCJE QUESTÓW ===== */
+  const completeSolo = async quest => {
     setLoading(true);
     await supabase.rpc("complete_quest", {
       p_player_id: player.id,
-      p_quest_id: quest.id
+      p_quest_id: quest.id,
     });
     setLoading(false);
-    setPlayer({ ...player }); // reload
+    setPlayer({ ...player }); // trigger reload
   };
 
-  // ==== RENDER ====
-  if (!player) {
-    return (
-      <div style={{ padding: 20 }}>
-        <h1>📘 Księga Domostwa</h1>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {PLAYERS.map(p => (
-            <div key={p.id} className="card" onClick={() => setPlayer(p)}>
-              <img src={p.avatar} style={{ width: "100%", borderRadius: "50%" }} />
-              <h3 style={{ textAlign: "center" }}>{p.nick}</h3>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const completeGroup = async (quest, secondPlayerId) => {
+    setLoading(true);
+    await supabase.rpc("complete_group_quest", {
+      p_player_1: player.id,
+      p_player_2: secondPlayerId,
+      p_quest_id: quest.id,
+    });
+    setLoading(false);
+    setPlayer({ ...player });
+  };
 
+  /* ===== RENDER ===== */
   return (
-    <div style={{ padding: 16 }}>
-      <div className="card">
-        <strong>{player.nick}</strong><br />
-        Poziom {progress?.level ?? 1} · XP {progress?.xp ?? 0}/{(progress?.level ?? 1) * 100}
-      </div>
+    <Layout>
+      <PlayerPanel player={player} progress={progress} />
 
-      <div className="tabs">
-        <div className={`tab ${tab === "main" ? "active" : ""}`} onClick={() => setTab("main")}>Główna</div>
-        <div className={`tab ${tab === "chronicle" ? "active" : ""}`} onClick={() => setTab("chronicle")}>Kronika</div>
-        <div className={`tab ${tab === "achievements" ? "active" : ""}`} onClick={() => setTab("achievements")}>Osiągnięcia</div>
-        <div className={`tab ${tab === "receipts" ? "active" : ""}`} onClick={() => setTab("receipts")}>Skrzynia</div>
-      </div>
+      <RankingBar ranking={ranking} lastWinner={lastWinner} />
+
+      <Tabs active={tab} onChange={setTab} />
 
       {loading && <p>⏳ Ładowanie…</p>}
 
+      {/* ===== GŁÓWNA ===== */}
       {tab === "main" && (
         <>
-          <h3>🚨 Emergency</h3>
-          {quests.filter(q => q.quest_type === "emergency").map(q => (
-            <div key={q.id} className="card">
-              <strong>{q.name}</strong><br />
-              ⏱ {q.time_minutes} min · ⭐ {Math.floor(q.base_xp * 1.5)} XP (BONUS)<br />
-              👥 Sloty: {slots[q.id]?.join(", ") || "wolne"}
-              <button onClick={() => doQuest(q)}>Wykonaj</button>
-            </div>
-          ))}
+          <QuestList
+            quests={quests}
+            slots={slots}
+            players={PLAYERS}
+            currentPlayer={player}
+            onCompleteSolo={completeSolo}
+            onCompleteGroup={completeGroup}
+          />
 
-          <h3>📋 Do wykonania</h3>
-          {quests.filter(q => q.quest_type !== "emergency").map(q => (
-            <div key={q.id} className="card">
-              <strong>{q.name}</strong><br />
-              ⏱ {q.time_minutes} min · ⭐ {q.base_xp} XP<br />
-              👥 Sloty: {slots[q.id]?.join(", ") || "wolne"}
-              <button onClick={() => doQuest(q)}>Wykonaj</button>
-            </div>
-          ))}
-
-          <h3>⏳ Nadchodzące</h3>
-          {upcoming.map(q => (
-            <div key={q.id} className="card" style={{ opacity: 0.5 }}>
-              <strong>{q.name}</strong><br />
-              Dostępne: {q.nextDue.toLocaleDateString()}
-            </div>
-          ))}
+          {upcoming.length > 0 && (
+            <>
+              <h3>⏳ Nadchodzące</h3>
+              {upcoming.map(q => (
+                <UpcomingQuest
+                  key={q.id}
+                  quest={q}
+                  availableText={getNextAvailableText(q)}
+                />
+              ))}
+            </>
+          )}
         </>
       )}
-    </div>
+
+      {/* ===== OSIĄGNIĘCIA ===== */}
+      {tab === "achievements" && (
+        <AchievementsView playerId={player.id} />
+      )}
+
+      {/* ===== KRONIKA ===== */}
+      {tab === "chronicle" && <ChronicleView />}
+
+      {/* ===== PARAGONY ===== */}
+      {tab === "receipts" && (
+        <ReceiptsView playerId={player.id} />
+      )}
+    </Layout>
   );
 }
