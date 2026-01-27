@@ -14,6 +14,9 @@ export default function Home() {
   const [player, setPlayer] = useState(null);
   const [progress, setProgress] = useState(null);
   const [quests, setQuests] = useState([]);
+  const [chronicle, setChronicle] = useState([]);
+  const [achievements, setAchievements] = useState([]);
+  const [owned, setOwned] = useState([]);
   const [tab, setTab] = useState("main");
   const [loading, setLoading] = useState(false);
   const [popup, setPopup] = useState(null);
@@ -56,6 +59,29 @@ export default function Home() {
       .order("is_emergency", { ascending: false });
 
     setQuests(qs || []);
+
+    const { data: ch } = await supabase
+      .from("chronicle_entries")
+      .select("id, message, created_at, players(nick, avatar_url)")
+      .order("created_at", { ascending: false })
+      .limit(8);
+
+    setChronicle(ch || []);
+
+    const { data: ach } = await supabase
+      .from("achievements")
+      .select("*")
+      .order("title");
+
+    setAchievements(ach || []);
+
+    const { data: pa } = await supabase
+      .from("player_achievements")
+      .select("achievement_id")
+      .eq("player_id", p.id);
+
+    setOwned((pa || []).map((x) => x.achievement_id));
+
     setLoading(false);
   }
 
@@ -79,16 +105,21 @@ export default function Home() {
     loadPlayer(player);
   }
 
+  async function setTitle(title) {
+    await supabase
+      .from("players")
+      .update({ active_title: title })
+      .eq("id", player.id);
+
+    setPlayer({ ...player, active_title: title });
+  }
+
   if (!player) {
     return (
       <main style={styles.app}>
         <h1>📖 Księga Domostwa</h1>
         {players.map((p) => (
-          <button
-            key={p.id}
-            style={styles.playerBtn}
-            onClick={() => loadPlayer(p)}
-          >
+          <button key={p.id} style={styles.playerBtn} onClick={() => loadPlayer(p)}>
             <img src={p.avatar_url || avatar(p.nick)} style={styles.avatar} />
             {p.nick}
           </button>
@@ -105,169 +136,84 @@ export default function Home() {
     <main style={styles.app}>
       {/* PROFIL */}
       <section style={styles.card}>
-        <img
-          src={player.avatar_url || avatar(player.nick)}
-          style={styles.avatarLarge}
-        />
+        <img src={player.avatar_url || avatar(player.nick)} style={styles.avatarLarge} />
         <div>
           <strong>
             {player.nick}
-            {player.active_title && (
-              <span style={{ color: "#c9a86a" }}>
-                {" "}
-                · {player.active_title}
-              </span>
-            )}
+            {player.active_title && <span style={{ color: "#c9a86a" }}> · {player.active_title}</span>}
           </strong>
-          <div>
-            Poziom {progress.level} · XP {progress.xp}/{progress.level * 100}
-          </div>
+          <div>Poziom {progress.level} · XP {progress.xp}/{progress.level * 100}</div>
         </div>
       </section>
 
       {/* TABS */}
       <div style={styles.tabs}>
-        <button
-          style={{
-            ...styles.tabBtn,
-            background: tab === "main" ? "#6b4f1d" : "#3a342a",
-          }}
-          onClick={() => setTab("main")}
-        >
-          🏠 Główna
-        </button>
-        <button
-          style={{
-            ...styles.tabBtn,
-            background: tab === "achievements" ? "#6b4f1d" : "#3a342a",
-          }}
-          onClick={() => setTab("achievements")}
-        >
-          🏆 Osiągnięcia
-        </button>
+        <button style={styles.tabBtn} onClick={() => setTab("main")}>🏠 Główna</button>
+        <button style={styles.tabBtn} onClick={() => setTab("achievements")}>🏆 Osiągnięcia</button>
       </div>
 
-      {/* QUESTY */}
-      {tab === "main" &&
-        quests.map((q) => {
-          const bonusXp = q.is_emergency
-            ? Math.ceil(q.base_xp * 1.3)
-            : q.base_xp;
-
-          return (
-            <section
-              key={q.id}
-              style={{
-                ...styles.card,
-                background: q.is_emergency ? "#3a1f1f" : "#2a251d",
-                border:
-                  q.is_emergency && "2px solid rgba(255,90,90,0.8)",
-                animation: q.is_emergency
-                  ? "pulse 1.5s infinite"
-                  : "none",
-              }}
-            >
-              <strong>
-                {q.is_emergency && "⚠ "} {q.name}
-              </strong>
-
-              {q.is_emergency && (
-                <div style={styles.emergencyText}>
-                  Alarm! Zadanie wymaga natychmiastowego działania.
-                </div>
-              )}
-
-              <div style={{ fontSize: 14, marginTop: 6 }}>
-                ⏱ {q.time_minutes} min ·{" "}
-                {q.is_emergency ? (
-                  <>
-                    <span style={{ textDecoration: "line-through" }}>
-                      ⭐ {q.base_xp}
-                    </span>
-                    <span style={{ color: "#ff6b5c", marginLeft: 6 }}>
-                      ⚡ {bonusXp} XP (+30%)
-                    </span>
-                  </>
-                ) : (
-                  <>⭐ {q.base_xp} XP</>
-                )}
+      {/* MAIN */}
+      {tab === "main" && (
+        <>
+          {quests.map((q) => (
+            <section key={q.id} style={{
+              ...styles.card,
+              background: q.is_emergency ? "#3a1f1f" : "#2a251d",
+              border: q.is_emergency ? "2px solid #b63c2d" : "none"
+            }}>
+              <strong>{q.is_emergency && "⚠ "} {q.name}</strong>
+              <div style={{ fontSize: 14, marginTop: 4 }}>
+                ⏱ {q.time_minutes} min · ⭐ {q.base_xp}
               </div>
-
-              <button
-                style={{
-                  ...styles.btn,
-                  background: q.is_emergency ? "#b63c2d" : "#8a6a2f",
-                }}
-                onClick={() => completeQuest(q)}
-              >
-                Wykonaj
-              </button>
+              <button style={styles.btn} onClick={() => completeQuest(q)}>Wykonaj</button>
             </section>
-          );
-        })}
+          ))}
 
-      {/* POPUP */}
+          <section style={{ ...styles.card, background: "#17140f" }}>
+            <h3>📜 Kronika Gildii</h3>
+            {chronicle.map((e, i) => (
+              <div key={e.id} style={{ opacity: 1 - i * 0.12, marginTop: 8 }}>
+                <strong>{e.players?.nick}</strong> – {e.message}
+                <div style={{ fontSize: 11, color: "#aaa" }}>
+                  {new Date(e.created_at).toLocaleString()}
+                </div>
+              </div>
+            ))}
+          </section>
+        </>
+      )}
+
+      {/* ACHIEVEMENTS */}
+      {tab === "achievements" && (
+        <section style={styles.card}>
+          <h3>🏆 Osiągnięcia</h3>
+          {achievements.map((a) => {
+            const unlocked = owned.includes(a.id);
+            return (
+              <div key={a.id}
+                style={{ opacity: unlocked ? 1 : 0.3, cursor: unlocked ? "pointer" : "default" }}
+                onClick={() => unlocked && setTitle(a.title)}>
+                <strong>{a.title}</strong>
+                <div style={{ fontSize: 13 }}>{a.condition}</div>
+              </div>
+            );
+          })}
+        </section>
+      )}
+
       {popup && <div style={styles.popup}>{popup}</div>}
-
-      <style>{`
-        @keyframes pulse {
-          0% { box-shadow: 0 0 0 0 rgba(255,90,90,0.6); }
-          70% { box-shadow: 0 0 0 10px rgba(255,90,90,0); }
-          100% { box-shadow: 0 0 0 0 rgba(255,90,90,0); }
-        }
-      `}</style>
     </main>
   );
 }
 
 const styles = {
-  app: {
-    minHeight: "100vh",
-    background: "#1e1b16",
-    color: "#f4f1ea",
-    padding: 20,
-    fontFamily: "serif",
-  },
-  card: {
-    padding: 14,
-    borderRadius: 10,
-    marginBottom: 16,
-  },
-  emergencyText: {
-    fontSize: 13,
-    color: "#ffb3b3",
-    marginTop: 4,
-    fontStyle: "italic",
-  },
+  app: { minHeight: "100vh", background: "#1e1b16", color: "#f4f1ea", padding: 20, fontFamily: "serif" },
+  card: { padding: 14, borderRadius: 10, marginBottom: 16 },
   tabs: { display: "flex", gap: 8, marginBottom: 12 },
-  tabBtn: { flex: 1, padding: 10, border: "none", color: "#fff" },
-  playerBtn: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: 10,
-    marginBottom: 8,
-    background: "#6b4f1d",
-    border: "none",
-    color: "#fff",
-  },
+  tabBtn: { flex: 1, padding: 10, background: "#6b4f1d", border: "none", color: "#fff" },
+  playerBtn: { display: "flex", gap: 10, padding: 10, background: "#6b4f1d", border: "none", color: "#fff", marginBottom: 8 },
   avatar: { width: 36, height: 36, borderRadius: "50%" },
   avatarLarge: { width: 64, height: 64, borderRadius: "50%" },
-  btn: {
-    marginTop: 8,
-    padding: "6px 12px",
-    border: "none",
-    color: "white",
-  },
-  popup: {
-    position: "fixed",
-    bottom: 20,
-    left: "50%",
-    transform: "translateX(-50%)",
-    background: "#3a2f1d",
-    padding: "12px 20px",
-    borderRadius: 12,
-    boxShadow: "0 0 12px rgba(0,0,0,0.6)",
-    zIndex: 999,
-  },
+  btn: { marginTop: 6, padding: "6px 12px", background: "#8a6a2f", border: "none", color: "white" },
+  popup: { position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", background: "#3a2f1d", padding: "12px 20px", borderRadius: 12 }
 };
