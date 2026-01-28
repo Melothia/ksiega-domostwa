@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
 import LoginScreen from "../components/LoginScreen";
-import Layout from "../components/Layouts"; // UWAGA: nazwa pliku = Layouts.jsx
+import Layout from "../components/Layout"; // UWAGA: nazwa pliku = Layout.jsx
 import Tabs from "../components/Tabs";
 import PlayerPanel from "../components/PlayerPanel";
 import RankingBar from "../components/RankingBar";
