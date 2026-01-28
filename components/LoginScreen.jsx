@@ -1,13 +1,11 @@
 export default function LoginScreen({ players, onSelect }) {
   return (
-    <div className="container">
-      <h1 style={{ textAlign: "center", marginBottom: 20 }}>
-        📘 Księga Domostwa
-      </h1>
+    <div className="login-container">
+      <h1 className="login-title">📘 Księga Domostwa</h1>
 
       <div className="login-grid">
         {players.map(p => (
-          <div
+          <button
             key={p.id}
             className="login-card"
             onClick={() => onSelect(p)}
@@ -16,9 +14,12 @@ export default function LoginScreen({ players, onSelect }) {
               src={p.avatar_url}
               alt={p.nick}
               className="login-avatar"
+              onError={e => {
+                e.currentTarget.src = "/avatars/default.png";
+              }}
             />
-            <h3>{p.nick}</h3>
-          </div>
+            <span className="login-nick">{p.nick}</span>
+          </button>
         ))}
       </div>
     </div>
