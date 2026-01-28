@@ -30,9 +30,35 @@ html, body {
 
 .login-title {
   font-size: 3.5rem;
-  margin-bottom: 60px;
+  margin-bottom: 20px;
+  margin-top: 0;
   font-weight: 400;
   letter-spacing: 2px;
+}
+
+.login-subtitle {
+  font-size: 1.5rem;
+  margin-bottom: 40px;
+  color: #999;
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+  .login-wrapper {
+    padding: 20px 16px;
+    justify-content: flex-start;
+    padding-top: 40px;
+  }
+  
+  .login-title {
+    font-size: 2rem;
+    margin-bottom: 12px;
+  }
+  
+  .login-subtitle {
+    font-size: 1.1rem;
+    margin-bottom: 24px;
+  }
 }
 
 .login-grid {
@@ -83,6 +109,18 @@ html, body {
   color: #808080;
   transition: color 0.3s ease;
   padding-bottom: 8px;
+}
+
+@media (max-width: 480px) {
+  .login-avatar img {
+    width: 140px;
+    height: 140px;
+  }
+  
+  .login-avatar span {
+    font-size: 1.1rem;
+    margin-top: 8px;
+  }
 }
 
 /* PLAYER PANEL */

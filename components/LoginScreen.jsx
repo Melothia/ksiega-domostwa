@@ -1,8 +1,8 @@
 export default function LoginScreen({ players, onSelect }) {
   return (
     <div className="login-wrapper">
-      <h1 className="login-title">📘 Księga Domostwa</h1>
-      <p style={{ fontSize: '1.5rem', marginBottom: '40px', color: '#999' }}>
+      <h1 className="login-title">Księga Domostwa</h1>
+      <p className="login-subtitle">
         Kto gra?
       </p>
 

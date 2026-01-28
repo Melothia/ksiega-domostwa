@@ -7,13 +7,67 @@ ALTER TABLE achievements
 ADD COLUMN IF NOT EXISTS xp_reward INTEGER DEFAULT 0;
 
 -- Ustaw nagrody XP dla wszystkich osiągnięć
-UPDATE achievements SET xp_reward = 70 WHERE achievement_type = 'single_quest';
-UPDATE achievements SET xp_reward = 100 WHERE achievement_type = 'multiple_completions'; -- x2, x3 wykonań
-UPDATE achievements SET xp_reward = 80 WHERE achievement_type = 'emergency'; -- emergency questy
-UPDATE achievements SET xp_reward = 90 WHERE achievement_type = 'group_quest'; -- questy grupowe
-UPDATE achievements SET xp_reward = 100 WHERE achievement_type = 'duration'; -- szybkie/długie questy
-UPDATE achievements SET xp_reward = 150 WHERE achievement_type = 'level'; -- level 10
-UPDATE achievements SET xp_reward = 200 WHERE achievement_type = 'monthly_winner'; -- gracz miesiąca
+-- Single quest achievements (podstawowe questy)
+UPDATE achievements SET xp_reward = 70 WHERE title IN (
+  'Strażnik/czka Chłodu',  -- Mycie lodówki
+  'Światłonośca/śna',  -- Mycie żyrandoli
+  'Pogromca/czyni Maszyn',  -- Mycie zmywarki
+  'Z Piekarodem',  -- Mycie piekarnika
+  'Niczym Alladyn',  -- Pranie dywaników
+  'Tkacz/ka Komfortu',  -- Pranie koców
+  'Wyniesiony/na',  -- Umycie schodów
+  'Nieustraszony/a',  -- Sprzątnięcie tarasu
+  'Druga Szansa'  -- Uratowanie questa po zgłoszeniu
+);
+
+-- Multiple completions (x2, x3, x5, x10, x25 wykonań)
+UPDATE achievements SET xp_reward = 100 WHERE title IN (
+  'Iluzjonista/tka',  -- Mycie luster x2
+  'Wabik',  -- Odkurzanie sofy x2
+  'Wszechwiedzący/a',  -- Sprawdzenie dat ważności x2
+  'Śliski/a jak gad',  -- Mycie podłóg x3
+  'Pan/Pani Widoków',  -- Mycie okien x3
+  'Pan/Pani Kuchni',  -- Mycie kuchni x5
+  'Władca/czyni Odpływów',  -- Mycie łazienek x5
+  'Pogromca/czyni Błota',  -- Mycie przedpokoju (zima) x5
+  'Obserwator/ka',  -- Szybkie ogarnięcie x5
+  'Opiekun/ka Równowagi',  -- 2 questy po innym graczu
+  'Zaklinacz/ka Kurzu',  -- Odkurzanie x10
+  'Latający/a na Miotle',  -- Wycieranie kurzy x10
+  'Koci/a Zaklinacz/ka',  -- Czesanie kota x10
+  'Strażnik/czka Porządku',  -- Wynoszenie śmieci x10
+  'Ulubieniec/ica Bestii'  -- Czesanie kota x25
+);
+
+-- Emergency quests
+UPDATE achievements SET xp_reward = 80 WHERE title IN (
+  'Bohater/ka Gildii',  -- Emergency x1 (epicki)
+  'Cały/Cała na Biało',  -- Emergency x3
+  'Strażnik/czka Natury',  -- Emergency x5
+  'Ostatnia Linia Obrony'  -- Emergency x10
+);
+
+-- Group quests
+UPDATE achievements SET xp_reward = 90 WHERE title IN (
+  'Towarzysz/ka Broni',  -- 5 questów grupowych
+  'Filary Gildii',  -- 10 questów grupowych
+  'Weteran/ka Domostwa'  -- Wspólny epic quest
+);
+
+-- Duration (szybkie/długie questy)
+UPDATE achievements SET xp_reward = 100 WHERE title IN (
+  'Cień Korytarzy',  -- 10 questów ≤25 min
+  'Wartownik/czka'  -- 10 questów ≥30 min
+);
+
+-- Level 10
+UPDATE achievements SET xp_reward = 150 WHERE title = 'Legenda Gildii';  -- Level 10
+
+-- Monthly winner
+UPDATE achievements SET xp_reward = 200 WHERE title = 'Czempion/ka Domostwa';  -- Gracz miesiąca
+
+-- Special achievements
+UPDATE achievements SET xp_reward = 120 WHERE title = 'Niezłomny/a';  -- 3 miesiące z rzędu
 
 -- Zaktualizuj funkcję check_and_unlock_achievements aby przyznawała XP
 CREATE OR REPLACE FUNCTION check_and_unlock_achievements(
