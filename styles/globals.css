@@ -51,6 +51,11 @@ html, body {
   margin-bottom: 16px;
 }
 
+.player-xp {
+  white-space: nowrap;
+  overflow: visible;
+}
+
 .player-panel img {
   width: 64px;
   height: 64px;
