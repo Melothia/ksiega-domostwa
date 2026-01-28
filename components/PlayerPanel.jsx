@@ -1,17 +1,14 @@
 export default function PlayerPanel({ player, progress }) {
   if (!player || !progress) {
-    return <div className="player-panel">⏳ Ładowanie profilu…</div>;
+    return <div className="panel">Ładowanie profilu…</div>;
   }
 
   return (
     <div className="player-panel">
       <img
-        src={player.avatar_url}
+        src={`/avatars/${player.avatar}`}
         alt={player.nick}
         className="player-avatar"
-        onError={e => {
-          e.currentTarget.src = "/avatars/default.png";
-        }}
       />
 
       <div className="player-info">
