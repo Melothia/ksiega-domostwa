@@ -1,8 +1,12 @@
+// pages/index.js
+// GŁÓWNA STRONA – pobiera questy z rotacją (RPC) i renderuje panel dzisiejszy
+// NIE RUSZA innych zakładek, NIE usuwa istniejących komponentów
+
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
 import LoginScreen from "../components/LoginScreen";
-import Layout from "../components/Layout"; // UWAGA: nazwa pliku = Layout.jsx
+import Layout from "../components/Layout";
 import Tabs from "../components/Tabs";
 import PlayerPanel from "../components/PlayerPanel";
 import RankingBar from "../components/RankingBar";
@@ -14,39 +18,71 @@ import AchievementsView from "../components/AchievementsView";
 import ChronicleView from "../components/ChronicleView";
 import ReceiptsView from "../components/ReceiptsView";
 
-import { getNextAvailableText } from "../lib/dateUtils";
-
-/* ===== STATYCZNA LISTA GRACZY ===== */
+/* ===== KONFIGURACJA GRACZY (STATYCZNA) ===== */
 const PLAYERS = [
-  { id: "b45ef046-f815-4eda-8015-d9212d9ac2ee", nick: "Melothy", avatar: "melothy.png" },
-  { id: "reu-id", nick: "Reu", avatar: "reu.png" },
-  { id: "pshemcky-id", nick: "Pshemcky", avatar: "pshemcky.png" },
-  { id: "benditt-id", nick: "Benditt", avatar: "benditt.png" },
+  {
+    id: "b45ef046-f815-4eda-8015-d9212d9ac2ee",
+    nick: "Melothy",
+    avatar: "melothy.png",
+    title: "Zaklinaczka Mopa",
+  },
+  {
+    id: "reu-id",
+    nick: "Reu",
+    avatar: "reu.png",
+    title: "Cień Domostwa",
+  },
+  {
+    id: "pshemcky-id",
+    nick: "Pshemcky",
+    avatar: "pshemcky.png",
+    title: "Strażnik Natury",
+  },
+  {
+    id: "benditt-id",
+    nick: "Benditt",
+    avatar: "benditt.png",
+    title: "Koci Kleryk",
+  },
 ];
 
 export default function Home() {
-  /* ===== STANY ===== */
+  /* ===== STANY GŁÓWNE ===== */
   const [player, setPlayer] = useState(null);
   const [tab, setTab] = useState("main");
   const [loading, setLoading] = useState(false);
 
+  /* ===== DANE ===== */
   const [progress, setProgress] = useState(null);
   const [ranking, setRanking] = useState([]);
   const [lastWinner, setLastWinner] = useState("—");
 
-  const [quests, setQuests] = useState([]);
-  const [upcoming, setUpcoming] = useState([]);
-  const [slots, setSlots] = useState({});
+  const [questsEmergency, setQuestsEmergency] = useState([]);
+  const [questsActive, setQuestsActive] = useState([]);
+  const [questsUpcoming, setQuestsUpcoming] = useState([]);
+
+  /* ===== LOGIN ===== */
+  if (!player) {
+    return (
+      <LoginScreen
+        players={PLAYERS.map(p => ({
+          ...p,
+          avatar_url: `/avatars/${p.avatar}`,
+        }))}
+        onSelect={setPlayer}
+      />
+    );
+  }
 
   /* ===== ŁADOWANIE DANYCH ===== */
   useEffect(() => {
-    if (!player) return;
-
     const loadAll = async () => {
       setLoading(true);
 
+      /* reset miesiąca jeśli trzeba */
       await supabase.rpc("reset_month_if_needed");
 
+      /* progress gracza */
       const { data: mp } = await supabase
         .from("monthly_progress")
         .select("*")
@@ -55,9 +91,10 @@ export default function Home() {
 
       setProgress(mp ?? null);
 
+      /* ranking miesiąca */
       const { data: rank } = await supabase
         .from("monthly_progress")
-        .select("level, xp, players(nick)")
+        .select("players(nick), level, xp")
         .order("level", { ascending: false })
         .order("xp", { ascending: false });
 
@@ -68,32 +105,22 @@ export default function Home() {
         }))
       );
 
-      const { data: winner } = await supabase.rpc("last_month_winner");
+      /* gracz miesiąca poprzedniego */
+      const { data: winner } = await supabase.rpc(
+        "last_month_winner"
+      );
       setLastWinner(winner ?? "—");
 
-      const { data: q } = await supabase.from("quests").select("*");
+      /* QUESTY – ROTACJA */
+      const { data: questData, error } = await supabase.rpc(
+        "get_quests_for_today"
+      );
 
-      const { data: s } = await supabase
-        .from("quest_slots")
-        .select("quest_id, players(nick)");
-
-      const slotMap = {};
-      (s ?? []).forEach(row => {
-        if (!slotMap[row.quest_id]) slotMap[row.quest_id] = [];
-        slotMap[row.quest_id].push(row.players.nick);
-      });
-      setSlots(slotMap);
-
-      const active = [];
-      const future = [];
-
-      (q ?? []).forEach(quest => {
-        if (quest.is_active) active.push(quest);
-        else future.push(quest);
-      });
-
-      setQuests(active);
-      setUpcoming(future);
+      if (!error && questData) {
+        setQuestsEmergency(questData.emergency ?? []);
+        setQuestsActive(questData.active ?? []);
+        setQuestsUpcoming(questData.upcoming ?? []);
+      }
 
       setLoading(false);
     };
@@ -109,7 +136,6 @@ export default function Home() {
       p_quest_id: quest.id,
     });
     setLoading(false);
-    setPlayer({ ...player });
   };
 
   const completeGroup = async (quest, secondPlayerId) => {
@@ -120,63 +146,72 @@ export default function Home() {
       p_quest_id: quest.id,
     });
     setLoading(false);
-    setPlayer({ ...player });
   };
 
   /* ===== RENDER ===== */
   return (
     <Layout>
-      {!player ? (
-        <LoginScreen
-          players={PLAYERS}
-          onSelect={p => setPlayer(p)}
-        />
-      ) : (
+      <PlayerPanel
+        player={{
+          ...player,
+          avatar_url: `/avatars/${player.avatar}`,
+        }}
+        progress={progress}
+      />
+
+      <RankingBar ranking={ranking} lastWinner={lastWinner} />
+
+      <Tabs active={tab} onChange={setTab} />
+
+      {loading && <p>⏳ Ładowanie…</p>}
+
+      {/* ===== GŁÓWNA ===== */}
+      {tab === "main" && (
         <>
-          <PlayerPanel player={player} progress={progress} />
-
-          <RankingBar ranking={ranking} lastWinner={lastWinner} />
-
-          <Tabs active={tab} onChange={setTab} />
-
-          {loading && <p>⏳ Ładowanie…</p>}
-
-          {tab === "main" && (
+          {questsEmergency.length > 0 && (
             <>
+              <h3>🚨 Emergency</h3>
               <QuestList
-                quests={quests}
-                slots={slots}
+                quests={questsEmergency}
                 players={PLAYERS}
                 currentPlayer={player}
                 onCompleteSolo={completeSolo}
                 onCompleteGroup={completeGroup}
               />
-
-              {upcoming.length > 0 && (
-                <>
-                  <h3>⏳ Nadchodzące</h3>
-                  {upcoming.map(q => (
-                    <UpcomingQuest
-                      key={q.id}
-                      quest={q}
-                      availableText={getNextAvailableText(q)}
-                    />
-                  ))}
-                </>
-              )}
             </>
           )}
 
-          {tab === "achievements" && (
-            <AchievementsView playerId={player.id} />
-          )}
+          <h3>📋 Do wykonania</h3>
+          <QuestList
+            quests={questsActive}
+            players={PLAYERS}
+            currentPlayer={player}
+            onCompleteSolo={completeSolo}
+            onCompleteGroup={completeGroup}
+          />
 
-          {tab === "chronicle" && <ChronicleView />}
-
-          {tab === "receipts" && (
-            <ReceiptsView playerId={player.id} />
+          {questsUpcoming.length > 0 && (
+            <>
+              <h3>⏳ Nadchodzące</h3>
+              {questsUpcoming.map(q => (
+                <UpcomingQuest key={q.id} quest={q} />
+              ))}
+            </>
           )}
         </>
+      )}
+
+      {/* ===== OSIĄGNIĘCIA ===== */}
+      {tab === "achievements" && (
+        <AchievementsView playerId={player.id} />
+      )}
+
+      {/* ===== KRONIKA ===== */}
+      {tab === "chronicle" && <ChronicleView />}
+
+      {/* ===== PARAGONY ===== */}
+      {tab === "receipts" && (
+        <ReceiptsView playerId={player.id} />
       )}
     </Layout>
   );
