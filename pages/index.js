@@ -18,30 +18,10 @@ import { getNextAvailableText } from "../lib/dateUtils";
 
 /* ===== STATYCZNA LISTA GRACZY ===== */
 const PLAYERS = [
-  {
-    id: "b45ef046-f815-4eda-8015-d9212d9ac2ee",
-    nick: "Melothy",
-    avatar: "/avatars/melothy.png",
-    title: "Zaklinaczka Kurzu",
-  },
-  {
-    id: "reu-id",
-    nick: "Reu",
-    avatar: "/avatars/reu.png",
-    title: "Cień Domostwa",
-  },
-  {
-    id: "pshemcky-id",
-    nick: "Pshemcky",
-    avatar: "/avatars/pshemcky.png",
-    title: "Strażnik Natury",
-  },
-  {
-    id: "benditt-id",
-    nick: "Benditt",
-    avatar: "/avatars/benditt.png",
-    title: "Koci Kleryk",
-  },
+  { id: "b45ef046-f815-4eda-8015-d9212d9ac2ee", nick: "Melothy", avatar: "melothy.png" },
+  { id: "reu-id", nick: "Reu", avatar: "reu.png" },
+  { id: "pshemcky-id", nick: "Pshemcky", avatar: "pshemcky.png" },
+  { id: "benditt-id", nick: "Benditt", avatar: "benditt.png" },
 ];
 
 export default function Home() {
