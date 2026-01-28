@@ -7,6 +7,7 @@ import { usePlayer } from "../contexts/PlayerContext";
 import { useGame } from "../contexts/GameContext";
 import { useQuests } from "../contexts/QuestContext";
 
+import PasswordScreen from "../components/PasswordScreen";
 import LoginScreen from "../components/LoginScreen";
 import Layout from "../components/Layout";
 import Tabs from "../components/Tabs";
@@ -36,6 +37,17 @@ export default function Home() {
   } = useQuests();
 
   const [tab, setTab] = useState("main");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Sprawdź czy hasło zostało już wprowadzone w tej sesji
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const auth = sessionStorage.getItem('auth');
+      if (auth === 'true') {
+        setIsAuthenticated(true);
+      }
+    }
+  }, []);
 
   const loading = gameLoading || questLoading;
 
@@ -74,6 +86,12 @@ export default function Home() {
   };
 
   /* ===== LOGIN ===== */
+  // Najpierw sprawdź hasło
+  if (!isAuthenticated) {
+    return <PasswordScreen onSuccess={() => setIsAuthenticated(true)} />;
+  }
+
+  // Potem wybór gracza
   if (!player) {
     return (
       <LoginScreen

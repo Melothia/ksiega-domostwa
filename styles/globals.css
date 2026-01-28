@@ -17,6 +17,107 @@ html, body {
   padding: 20px;
 }
 
+/* PASSWORD SCREEN */
+.password-wrapper {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 20px;
+}
+
+.password-container {
+  max-width: 600px;
+  width: 100%;
+  text-align: center;
+}
+
+.password-logo {
+  width: 500px;
+  max-width: 100%;
+  height: auto;
+  margin-bottom: 32px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.password-subtitle {
+  font-size: 1.2rem;
+  margin-bottom: 32px;
+  color: #999;
+}
+
+.password-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.password-input {
+  padding: 16px 20px;
+  font-size: 1.1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #e5e5e5;
+  transition: all 0.3s ease;
+}
+
+.password-input:focus {
+  outline: none;
+  border-color: #a78bfa;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.password-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.password-button {
+  padding: 16px 32px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  background: linear-gradient(135deg, #7c3aed, #2563eb);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.password-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4);
+}
+
+.password-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.password-error {
+  color: #ef4444;
+  font-size: 0.95rem;
+  margin: 0;
+  padding: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 6px;
+}
+
+@media (max-width: 480px) {
+  .password-logo {
+    width: 300px;
+  }
+  
+  .password-subtitle {
+    font-size: 1rem;
+  }
+}
+
 /* LOGIN - Netflix Style */
 .login-wrapper {
   min-height: 100vh;
@@ -26,6 +127,13 @@ html, body {
   align-items: center;
   text-align: center;
   padding: 40px 20px;
+}
+
+.login-logo {
+  width: 200px;
+  height: auto;
+  margin-bottom: 20px;
+  margin-top: 0;
 }
 
 .login-title {
@@ -48,6 +156,10 @@ html, body {
     padding: 20px 16px;
     justify-content: flex-start;
     padding-top: 40px;
+  }
+  
+  .login-logo {
+    width: 140px;
   }
   
   .login-title {
