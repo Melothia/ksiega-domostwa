@@ -21,25 +21,25 @@ const PLAYERS = [
   {
     id: "b45ef046-f815-4eda-8015-d9212d9ac2ee",
     nick: "Melothy",
-    avatar: "/Melothy.png",
+    avatar: "/avatars/melothy.png",
     title: "Zaklinaczka Kurzu",
   },
   {
     id: "reu-id",
     nick: "Reu",
-    avatar: "/Reu.png",
+    avatar: "/avatars/reu.png",
     title: "Cień Domostwa",
   },
   {
     id: "pshemcky-id",
     nick: "Pshemcky",
-    avatar: "/Pshemcky.png",
+    avatar: "/avatars/pshemcky.png",
     title: "Strażnik Natury",
   },
   {
     id: "benditt-id",
     nick: "Benditt",
-    avatar: "/Benditt.png",
+    avatar: "/avatars/benditt.png",
     title: "Koci Kleryk",
   },
 ];
