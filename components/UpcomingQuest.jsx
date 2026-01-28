@@ -1,9 +1,13 @@
-export default function UpcomingQuest({ quest, availableText }) {
+// components/UpcomingQuest.jsx
+// Quest „Nadchodzący” – tylko informacja, brak akcji
+
+export default function UpcomingQuest({ quest }) {
   return (
-    <div className="card upcoming">
+    <div className="upcoming-quest">
       <strong>{quest.name}</strong>
+
       <div className="quest-meta">
-        <div>⏳ {availableText}</div>
+        <div>⏳ wkrótce</div>
         <div>⏱ {quest.time_minutes} min</div>
         <div>⭐ {quest.base_xp} XP</div>
       </div>
