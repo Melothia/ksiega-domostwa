@@ -14,7 +14,7 @@ export default function AchievementsView({ playerId, onTitleChange }) {
   const loadData = useCallback(async () => {
     setLoading(true);
 
-    // Pobierz wszystkie osiągnięcia
+    // Pobierz wszystkie osiągnięcia z nagrodami XP
     const { data: allAch, error: achError } = await supabase
       .from("achievements")
       .select("*")
@@ -90,7 +90,14 @@ export default function AchievementsView({ playerId, onTitleChange }) {
             <div key={ach.id} className="achievement-card achievement-unlocked">
               <div className="achievement-icon">🏆</div>
               <div className="achievement-info">
-                <h4 className="achievement-title">{ach.title}</h4>
+                <h4 className="achievement-title">
+                  {ach.title}
+                  {ach.xp_reward > 0 && (
+                    <span style={{ marginLeft: '8px', color: '#a78bfa', fontSize: '0.9rem' }}>
+                      +{ach.xp_reward} XP
+                    </span>
+                  )}
+                </h4>
                 <p className="achievement-condition">{ach.condition}</p>
                 <button 
                   className="achievement-set-title"
@@ -113,7 +120,14 @@ export default function AchievementsView({ playerId, onTitleChange }) {
             <div key={ach.id} className="achievement-card achievement-locked">
               <div className="achievement-icon">🔒</div>
               <div className="achievement-info">
-                <h4 className="achievement-title">{ach.title}</h4>
+                <h4 className="achievement-title">
+                  {ach.title}
+                  {ach.xp_reward > 0 && (
+                    <span style={{ marginLeft: '8px', color: '#6b7280', fontSize: '0.9rem' }}>
+                      +{ach.xp_reward} XP
+                    </span>
+                  )}
+                </h4>
                 <p className="achievement-condition">{ach.condition}</p>
               </div>
             </div>
