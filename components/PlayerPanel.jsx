@@ -6,7 +6,7 @@ export default function PlayerPanel({ player, progress }) {
   return (
     <div className="player-panel">
       <img
-        src={player.avatar}
+        src={player.avatar_url}
         alt={player.nick}
         className="player-avatar"
         onError={e => {
