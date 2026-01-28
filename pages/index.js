@@ -1,9 +1,11 @@
 // pages/index.js
-// GŁÓWNA STRONA – pobiera questy z rotacją (RPC) i renderuje panel dzisiejszy
-// NIE RUSZA innych zakładek, NIE usuwa istniejących komponentów
+// GŁÓWNA STRONA – wykorzystuje Context API do zarządzania stanem
 
 import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabase";
+
+import { usePlayer } from "../contexts/PlayerContext";
+import { useGame } from "../contexts/GameContext";
+import { useQuests } from "../contexts/QuestContext";
 
 import LoginScreen from "../components/LoginScreen";
 import Layout from "../components/Layout";
@@ -18,135 +20,71 @@ import AchievementsView from "../components/AchievementsView";
 import ChronicleView from "../components/ChronicleView";
 import ReceiptsView from "../components/ReceiptsView";
 
-/* ===== KONFIGURACJA GRACZY (STATYCZNA) ===== */
-const PLAYERS = [
-  {
-    id: "b45ef046-f815-4eda-8015-d9212d9ac2ee",
-    nick: "Melothy",
-    avatar: "melothy.png",
-    title: "Zaklinaczka Mopa",
-  },
-  {
-    id: "reu-id",
-    nick: "Reu",
-    avatar: "reu.png",
-    title: "Cień Domostwa",
-  },
-  {
-    id: "pshemcky-id",
-    nick: "Pshemcky",
-    avatar: "pshemcky.png",
-    title: "Strażnik Natury",
-  },
-  {
-    id: "benditt-id",
-    nick: "Benditt",
-    avatar: "benditt.png",
-    title: "Koci Kleryk",
-  },
-];
+import { Loading } from "../components/ui/Loading";
 
 export default function Home() {
-  /* ===== STANY GŁÓWNE ===== */
-  const [player, setPlayer] = useState(null);
+  const { player, players, selectPlayer, updateTitle } = usePlayer();
+  const { progress, ranking, lastWinner, loading: gameLoading, loadGameData, refreshProgress } = useGame();
+  const { 
+    questsEmergency, 
+    questsActive, 
+    questsUpcoming, 
+    loading: questLoading, 
+    loadQuests, 
+    completeSolo, 
+    completeGroup 
+  } = useQuests();
+
   const [tab, setTab] = useState("main");
-  const [loading, setLoading] = useState(false);
 
-  /* ===== DANE ===== */
-  const [progress, setProgress] = useState(null);
-  const [ranking, setRanking] = useState([]);
-  const [lastWinner, setLastWinner] = useState("—");
+  const loading = gameLoading || questLoading;
 
-  const [questsEmergency, setQuestsEmergency] = useState([]);
-  const [questsActive, setQuestsActive] = useState([]);
-  const [questsUpcoming, setQuestsUpcoming] = useState([]);
+  /* ===== ŁADOWANIE DANYCH PO ZALOGOWANIU ===== */
+  useEffect(() => {
+    if (player) {
+      loadGameData(player.id);
+      loadQuests();
+    }
+  }, [player?.id]);
+
+  /* ===== ODŚWIEŻANIE PRZY ZMIANIE ZAKŁADKI ===== */
+  useEffect(() => {
+    if (player && tab === "main") {
+      loadQuests();
+    }
+  }, [tab, player?.id]);
+
+  /* ===== AKCJE QUESTÓW ===== */
+  const handleCompleteSolo = async (quest) => {
+    await completeSolo(player.id, quest.id);
+    await refreshProgress(player.id);
+    await loadQuests();
+  };
+
+  const handleCompleteGroup = async (quest, secondPlayerId) => {
+    await completeGroup(player.id, secondPlayerId, quest.id);
+    await refreshProgress(player.id);
+    await loadQuests();
+  };
+
+  /* ===== ODŚWIEŻENIE PO DODANIU PARAGONU ===== */
+  const handleDataRefresh = async () => {
+    await refreshProgress(player.id);
+    await loadQuests();
+  };
 
   /* ===== LOGIN ===== */
   if (!player) {
     return (
       <LoginScreen
-        players={PLAYERS.map(p => ({
+        players={players.map(p => ({
           ...p,
           avatar_url: `/avatars/${p.avatar}`,
         }))}
-        onSelect={setPlayer}
+        onSelect={selectPlayer}
       />
     );
   }
-
-  /* ===== ŁADOWANIE DANYCH ===== */
-  useEffect(() => {
-    const loadAll = async () => {
-      setLoading(true);
-
-      /* reset miesiąca jeśli trzeba */
-      await supabase.rpc("reset_month_if_needed");
-
-      /* progress gracza */
-      const { data: mp } = await supabase
-        .from("monthly_progress")
-        .select("*")
-        .eq("player_id", player.id)
-        .single();
-
-      setProgress(mp ?? null);
-
-      /* ranking miesiąca */
-      const { data: rank } = await supabase
-        .from("monthly_progress")
-        .select("players(nick), level, xp")
-        .order("level", { ascending: false })
-        .order("xp", { ascending: false });
-
-      setRanking(
-        (rank ?? []).map(r => ({
-          nick: r.players?.nick,
-          level: r.level,
-        }))
-      );
-
-      /* gracz miesiąca poprzedniego */
-      const { data: winner } = await supabase.rpc(
-        "last_month_winner"
-      );
-      setLastWinner(winner ?? "—");
-
-      /* QUESTY – ROTACJA */
-      const { data: questData, error } = await supabase.rpc(
-        "get_quests_for_today"
-      );
-
-      if (!error && questData) {
-        setQuestsEmergency(questData.emergency ?? []);
-        setQuestsActive(questData.active ?? []);
-        setQuestsUpcoming(questData.upcoming ?? []);
-      }
-
-      setLoading(false);
-    };
-
-    loadAll();
-  }, [player]);
-
-  /* ===== AKCJE QUESTÓW ===== */
-  const completeSolo = async quest => {
-    setLoading(true);
-    await supabase.rpc("complete_quest", {
-      p_player_id: player.id,
-      p_quest_id: quest.id,
-    });
-    setLoading(false);
-  };
-
-  const completeGroup = async (quest, secondPlayerId) => {
-    setLoading(true);
-    await supabase.rpc("complete_group_quest", {
-      p_player_1: player.id,
-      p_player_2: secondPlayerId,
-      p_quest_id: quest.id,
-    });
-    setLoading(false);
-  };
 
   /* ===== RENDER ===== */
   return (
@@ -157,13 +95,36 @@ export default function Home() {
           avatar_url: `/avatars/${player.avatar}`,
         }}
         progress={progress}
+        loading={gameLoading}
       />
 
       <RankingBar ranking={ranking} lastWinner={lastWinner} />
 
       <Tabs active={tab} onChange={setTab} />
 
-      {loading && <p>⏳ Ładowanie…</p>}
+      {loading && <Loading />}
+
+      {!loading && !progress && (
+        <div style={{ 
+          padding: '20px', 
+          background: 'rgba(251, 191, 36, 0.1)', 
+          borderRadius: '12px', 
+          border: '1px solid rgba(251, 191, 36, 0.3)',
+          marginBottom: '20px'
+        }}>
+          <h3 style={{ color: '#fbbf24', marginTop: 0 }}>⚠️ Baza danych nie jest skonfigurowana</h3>
+          <p style={{ margin: '8px 0' }}>Sprawdź konsolę przeglądarki (F12) aby zobaczyć szczegóły błędów.</p>
+          <p style={{ margin: '8px 0', fontSize: '0.9rem', opacity: 0.8 }}>
+            Upewnij się, że w Supabase istnieją:
+          </p>
+          <ul style={{ marginLeft: '20px', fontSize: '0.9rem' }}>
+            <li>Tabela <code>monthly_progress</code></li>
+            <li>Tabela <code>players</code></li>
+            <li>Tabela <code>quests</code></li>
+            <li>Funkcje RPC: <code>reset_month_if_needed</code>, <code>get_quests_for_today</code>, <code>last_month_winner</code></li>
+          </ul>
+        </div>
+      )}
 
       {/* ===== GŁÓWNA ===== */}
       {tab === "main" && (
@@ -173,10 +134,10 @@ export default function Home() {
               <h3>🚨 Emergency</h3>
               <QuestList
                 quests={questsEmergency}
-                players={PLAYERS}
+                players={players}
                 currentPlayer={player}
-                onCompleteSolo={completeSolo}
-                onCompleteGroup={completeGroup}
+                onCompleteSolo={handleCompleteSolo}
+                onCompleteGroup={handleCompleteGroup}
               />
             </>
           )}
@@ -184,10 +145,10 @@ export default function Home() {
           <h3>📋 Do wykonania</h3>
           <QuestList
             quests={questsActive}
-            players={PLAYERS}
+            players={players}
             currentPlayer={player}
-            onCompleteSolo={completeSolo}
-            onCompleteGroup={completeGroup}
+            onCompleteSolo={handleCompleteSolo}
+            onCompleteGroup={handleCompleteGroup}
           />
 
           {questsUpcoming.length > 0 && (
@@ -203,15 +164,23 @@ export default function Home() {
 
       {/* ===== OSIĄGNIĘCIA ===== */}
       {tab === "achievements" && (
-        <AchievementsView playerId={player.id} />
+        <AchievementsView 
+          key="achievements" 
+          playerId={player.id} 
+          onTitleChange={updateTitle} 
+        />
       )}
 
       {/* ===== KRONIKA ===== */}
-      {tab === "chronicle" && <ChronicleView />}
+      {tab === "chronicle" && <ChronicleView key="chronicle" />}
 
       {/* ===== PARAGONY ===== */}
       {tab === "receipts" && (
-        <ReceiptsView playerId={player.id} />
+        <ReceiptsView 
+          key="receipts" 
+          playerId={player.id} 
+          onDataChange={handleDataRefresh} 
+        />
       )}
     </Layout>
   );

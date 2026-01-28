@@ -38,10 +38,7 @@ export default function QuestList({
 
             {/* SOLO */}
             {quest.max_slots <= 1 && (
-              <button
-                style={{ marginTop: 8 }}
-                onClick={() => onCompleteSolo(quest)}
-              >
+              <button onClick={() => onCompleteSolo(quest)}>
                 Wykonaj
               </button>
             )}
@@ -49,14 +46,12 @@ export default function QuestList({
             {/* GRUPOWY */}
             {quest.max_slots > 1 && (
               <div style={{ marginTop: 8 }}>
-                <button
-                  onClick={() => onCompleteSolo(quest)}
-                >
+                <button onClick={() => onCompleteSolo(quest)}>
                   Wykonaj samodzielnie
                 </button>
 
                 <select
-                  style={{ width: "100%", marginTop: 6 }}
+                  style={{ width: "100%", marginTop: 8 }}
                   value={selectedHelper}
                   onChange={e =>
                     setGroupTarget({
@@ -79,7 +74,7 @@ export default function QuestList({
 
                 {selectedHelper && (
                   <button
-                    style={{ marginTop: 6 }}
+                    style={{ marginTop: 8 }}
                     onClick={() => {
                       onCompleteGroup(quest, selectedHelper);
                       setGroupTarget({

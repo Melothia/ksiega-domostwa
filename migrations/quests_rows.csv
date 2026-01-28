@@ -1,0 +1,24 @@
+id,name,frequency_days,time_minutes,base_xp,max_slots,bonus_classes,quest_type,active,emergency_after_days
+00a14db0-e138-4171-93db-e6af73b75ffd,Mycie żyrandoli i lamp,365,60,500,1,,legendarny,true,3
+018580b2-d217-475d-aeb5-9a6885750c83,Sprzątanie tarasu,30,60,180,2,,podstawowy,true,3
+19c5f73f-8ab9-41b8-9cce-209ef413403f,Pranie kocy,180,20,200,1,,epicki,true,3
+2b768575-37f8-4231-9241-4cd9fcec86f5,Mycie schodów,90,45,130,1,,rzadki,true,3
+2ffe8ef6-0169-4539-ae18-1d3e95b3f7f0,Mycie piekarnika,180,45,400,1,,epicki,true,3
+37324041-ee6c-4abe-bd29-92f855992206,Sprawdzanie dat ważności (lodówka),90,15,70,1,,rzadki,true,3
+38416785-d8bd-491e-8675-4d2091d67733,Szybkie ogólne ogarnięcie przestrzeni wspólnej,1,10,60,1,,podstawowy,true,3
+3b83ccff-1518-4cde-9f8b-8f0752039b14,Mycie lodówki,365,60,500,1,,legendarny,true,3
+3ec3a22c-9198-43e4-bc09-cd15a7df6165,Mycie kuchni,14,40,120,1,,podstawowy,true,3
+420dded9-eb9a-4d3b-ba6f-8d507c0e6d2c,Mycie okien,90,90,250,2,,rzadki,true,3
+491c3a24-c82f-43ee-936d-dcda468f071b,Zamiatanie / Mycie podłóg,30,60,180,2,,podstawowy,true,3
+4a2b0932-4c6b-4b04-ba39-13200079c96d,Mycie zmywarki,180,45,400,1,,epicki,true,3
+69707e17-fa58-44e2-b8fe-3545ef9f2e83,Odkurzanie,2,30,100,1,,podstawowy,true,3
+6cbbfef1-6c4f-4b1b-ac1c-cd5193197b23,Mycie przedpokoju (zima),1,10,60,1,,podstawowy,true,3
+6fe13541-36d0-4461-996f-2bb35fa2946e,Mycie luster,30,20,80,1,,podstawowy,true,3
+c0c11c80-1b71-46bc-9ae1-3792022876d9,Odkurzanie sofy,30,20,80,1,,podstawowy,true,3
+c11bf229-3c78-43f0-a4ef-cba056df3653,Wynoszenie śmieci,2,10,60,1,,podstawowy,true,3
+c54e04b9-9f3b-4d93-b592-948f5820d0bf,Mycie łazienki (wanna),14,45,130,1,,podstawowy,true,3
+caa2b638-d7fd-41da-8cf8-a4046beb6dac,Sprawdzanie dat ważności (leki),180,15,120,1,,epicki,true,3
+cadeb25c-2535-4326-b701-0d30ba113dd3,Wycieranie kurzu,14,20,80,1,,podstawowy,true,3
+d07a1fd6-3448-46d6-af8d-6073b7525046,Mycie łazienki (prysznic),14,45,130,1,,podstawowy,true,3
+dc540c07-a4b8-40da-ac88-12e3110c83bb,Czesanie kota,7,10,60,1,,podstawowy,true,3
+f25c000d-216b-4751-800a-3a80626e95de,Pranie dywaników łazienkowych,60,30,100,1,,rzadki,true,3
