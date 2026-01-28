@@ -61,3 +61,29 @@ html, body {
   height: 64px;
   border-radius: 50%;
 }
+
+.ranking-bar {
+  margin: 16px 0;
+  padding: 12px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 12px;
+}
+
+.ranking-row {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.ranking-item {
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.ranking-winner {
+  margin-top: 8px;
+  font-size: 13px;
+  opacity: 0.8;
+}
