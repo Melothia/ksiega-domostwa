@@ -34,5 +34,4 @@ yarn-error.log*
 next-env.d.ts
 
 # temporary files
-message*.txt
 *.tmp
