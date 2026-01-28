@@ -1,3 +1,6 @@
+// components/Tabs.jsx
+// Mobilne zakładki: Główna / Osiągnięcia / Kronika / Skrzynia Paragonów
+
 export default function Tabs({ active, onChange }) {
   const tabs = [
     { id: "main", label: "Główna" },
@@ -11,7 +14,7 @@ export default function Tabs({ active, onChange }) {
       {tabs.map(t => (
         <button
           key={t.id}
-          className={active === t.id ? "tab active" : "tab"}
+          className={`tab ${active === t.id ? "active" : ""}`}
           onClick={() => onChange(t.id)}
         >
           {t.label}
