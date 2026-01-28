@@ -12,25 +12,25 @@ const STATIC_PLAYERS = [
     id: "b45ef046-f815-4eda-8015-d9212d9ac2ee",
     nick: "Melothy",
     avatar: "melothy.png",
-    title: "Zaklinaczka Mopa",
+    title: "Łowczyni",
   },
   {
     id: "28258779-8e73-40bd-a6a2-cf59fda23642",
     nick: "Reu",
     avatar: "reu.png",
-    title: "Cień Domostwa",
+    title: "Łotr",
   },
   {
     id: "57e30c17-c29b-4755-872b-9edcd5c143a7",
     nick: "Pshemcky",
     avatar: "pshemcky.png",
-    title: "Strażnik Natury",
+    title: "Drujt",
   },
   {
     id: "922a75ba-ce4e-4796-b05e-afad4bfaacb1",
     nick: "Benditt",
     avatar: "benditt.png",
-    title: "Koci Kleryk",
+    title: "Kapłan",
   },
 ];
 
